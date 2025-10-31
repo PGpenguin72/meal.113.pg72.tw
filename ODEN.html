@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <!-- 
+    [v7.2] (Cloudflare Proxy 架構)
+    - 100% 移除 "google-apps-script-viewport" (v6.29)
+    - 100% 換回 "標準 viewport"
+  -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- [v6.30] 系統命名 (Oden) -->
+  <title>KDS (關東煮) | 壹參壹參 小食部</title>
+  
+  <style>
+    body {
+      font-family: 'Inter', 'Noto Sans TC', sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .loader {
+      border-top-color: #3498db;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    /* [v6.17] 卡片動畫 */
+    .card-enter {
+      animation: card-in 0.3s ease-out;
+    }
+    @keyframes card-in {
+      from {
+        opacity: 0;
+        transform: scale(0.95);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+  </style>
+</head>
+<!-- [v6.28] 終極版面 (參考 "合作社" 範本) -->
+<body class="bg-gray-900 text-white min-h-screen">
+
+  <!-- [v6.24] 頂部標題欄 (Sticky) -->
+  <header class="bg-gray-800 shadow-md p-4 flex justify-between items-center sticky top-0 z-10">
+    <!-- [v6.30] 系統命名/字體 (Oden) -->
+    <h1 class="text-2xl sm:text-3xl font-bold">KDS (關東煮) | 壹參壹參</h1>
+    
+    <div class="flex items-center space-x-2">
+      <span class="text-lg">自動刷新：</span>
+      <span id="countdown-timer" class="text-lg font-mono font-bold w-6 text-right">10</span>
+      <span class="text-lg">秒</span>
+    </div>
+  </header>
+
+  <!-- [v6.26] 訂單區塊 (拿掉 flex-1) -->
+  <main id="orders-grid" class="p-4 grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">
+    <!-- 載入中... -->
+    <div id="loading-kds" class="col-span-full h-64 flex flex-col justify-center items-center text-gray-400">
+      <div class="loader ease-linear rounded-full border-8 border-t-8 border-gray-500 h-24 w-24 mb-4"></div>
+      <span class="text-2xl font-semibold">載入訂單中...</span>
+    </div>
+  </main>
+  
+  <!-- [v6.28] 版權 (參考 "合作社" 範本) -->
+  <footer class="text-center text-sm text-gray-500 p-4 mt-16">
+    © ArcantStudio | 極區工作室 2025 製作
+  </footer>
+  
+  <!-- 錯誤視窗 (HTML 100% 不變) -->
+  <div id="error-modal" class="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 hidden">
+    <div class="bg-gray-800 border border-red-500 p-8 rounded-lg shadow-2xl w-full max-w-md text-center">
+       <div class="w-24 h-24 bg-red-900 rounded-full p-4 flex items-center justify-center mx-auto mb-6">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-16 h-16 text-red-400">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+        </svg>
+      </div>
+      <h3 class="text-3xl font-bold mb-4 text-white">連線錯誤</h3>
+      <p id="error-message" class="text-lg text-gray-300 mb-8">
+        無法完成操作。
+      </p>
+      <button id="close-error-btn" class="w-full bg-gray-600 text-white font-semibold py-3 rounded-lg hover:bg-gray-700 transition text-xl">
+        關閉
+      </button>
+    </div>
+  </div>
+
+
+  <script>
+    // ====================================================================
+    // [v7.2] (Cloudflare Proxy 架構)
+    // 100% 移除了 WEB_APP_URL
+    // 100% 改成你自己的 "相對" API 路徑
+    // ====================================================================
+    const API_ENDPOINT = '/api'; // [v7.2] 100% 改為 Cloudflare Proxy 代理路徑
+    // ====================================================================
+    
+    // [v7.2] 100% 系統類型
+    const KDS_TYPE = 'oden'; // 100% (Oden)
+    // ====================================================================
+
+    const REFRESH_INTERVAL_SECONDS = 10; // KDS 刷新頻率 (10秒)
+    
+    let countdownTimer = REFRESH_INTERVAL_SECONDS;
+    let refreshInterval;
+    let currentOrderIds = new Set(); // [v6.17] 追蹤畫面上的訂單
+
+    const ordersGrid = document.getElementById('orders-grid');
+    const loadingKdsEl = document.getElementById('loading-kds');
+    const countdownTimerEl = document.getElementById('countdown-timer');
+    const errorModal = document.getElementById('error-modal');
+    const errorMessageEl = document.getElementById('error-message');
+    const closeErrorBtn = document.getElementById('close-error-btn');
+
+    document.addEventListener('DOMContentLoaded', () => {
+      fetchOrders(); 
+      startTimer(); 
+      
+      closeErrorBtn.addEventListener('click', () => {
+        errorModal.classList.add('hidden');
+        fetchOrders(); 
+        startTimer(); 
+      });
+    });
+
+    // [v7.2] (Cloudflare Proxy) 輔助函式：GET
+    async function apiGet(action, params = {}) {
+      if (API_ENDPOINT === 'YOUR_DEPLOYED_WEB_APP_URL_HERE') {
+        throw new Error('你 100% 忘了在 JS 裡填上 API_ENDPOINT！');
+      }
+      const url = new URL(API_ENDPOINT, window.location.origin);
+      url.searchParams.append('action', action);
+      for (const key in params) {
+        url.searchParams.append(key, params[key]);
+      }
+      const response = await fetch(url, { method: 'GET' });
+      if (!response.ok) throw new Error(`網路錯誤 (Status: ${response.status})`);
+      const result = await response.json();
+      if (!result.success) throw new Error(result.message || 'API 回傳失敗');
+      return result.data; 
+    }
+    
+    // [v7.2] (Cloudflare Proxy) 輔助函式：POST
+    async function apiPost(action, data = {}) {
+      if (API_ENDPOINT === 'YOUR_DEPLOYED_WEB_APP_URL_HERE') {
+        throw new Error('你 100% 忘了在 JS 裡填上 API_ENDPOINT！');
+      }
+      const response = await fetch(new URL(API_ENDPOINT, window.location.origin), {
+        method: 'POST',
+        body: JSON.stringify({ action: action, data: data }),
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (!response.ok) throw new Error(`網路錯誤 (Status: ${response.status})`);
+      const result = await response.json();
+      if (!result.success) throw new Error(result.message || 'API 回傳失敗');
+      return result.data;
+    }
+
+    /**
+     * 1. 開始自動刷新計時器 (v7.2 100% 不變)
+     */
+    function startTimer() {
+      if (refreshInterval) clearInterval(refreshInterval); 
+      
+      countdownTimer = REFRESH_INTERVAL_SECONDS;
+      countdownTimerEl.textContent = countdownTimer;
+      
+      refreshInterval = setInterval(() => {
+        countdownTimer--;
+        countdownTimerEl.textContent = countdownTimer;
+        if (countdownTimer <= 0) {
+          fetchOrders();
+          countdownTimer = REFRESH_INTERVAL_SECONDS; 
+        }
+      }, 1000);
+    }
+    
+    /**
+     * (輔助) 顯示 "沒有訂單" (v7.2 100% 不變)
+     */
+    function showNoOrdersMessage() {
+       loadingKdsEl.classList.add('hidden'); // [v6.17] 隱藏載入中
+       ordersGrid.innerHTML = `
+          <div class="col-span-full h-64 flex flex-col justify-center items-center text-gray-500">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-24 h-24 mb-4">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+            <span class="text-3xl font-semibold">目前沒有待處理的訂單！</span>
+          </div>
+        `;
+       currentOrderIds.clear(); // [v6.17]
+    }
+
+    /**
+     * 2. [v7.2] (Cloudflare Proxy) 獲取廚房訂單
+     */
+    async function fetchOrders() {
+      countdownTimer = REFRESH_INTERVAL_SECONDS; 
+      
+      try {
+        // [v7.2] 100% 移除 google.script.run，改用 apiGet()
+        // [v7.2] 100% 傳送 KDS_TYPE
+        const data = await apiGet('getKitchenOrders', { type: KDS_TYPE });
+        onOrdersSuccess(data); // [v7.2] data 100% 是 { orders: [...] }
+      } catch (error) {
+        onOrdersFailure(error);
+      }
+    }
+    
+    /**
+     * 3. 獲取訂單成功，渲染畫面 (v7.2 100% 不變)
+     */
+    function onOrdersSuccess(data) {
+      loadingKdsEl.classList.add('hidden');
+      
+      const orders = data.orders || []; // [v7.1] 100% API 回傳 { success: true, data: { orders: [...] } }
+      
+      if (orders.length === 0) {
+        showNoOrdersMessage();
+        return;
+      }
+      
+      const newOrderIds = new Set(orders.map(o => o.orderName));
+      
+      // 移除舊卡片
+      currentOrderIds.forEach(id => {
+        if (!newOrderIds.has(id)) {
+          const card = document.getElementById(`order-${id}`);
+          if (card) card.remove();
+          currentOrderIds.delete(id);
+        }
+      });
+
+      // 渲染新卡片/更新舊卡片
+      orders.forEach(order => {
+        const existingCard = document.getElementById(`order-${order.orderName}`);
+        if (existingCard) {
+          updateOrderCard(existingCard, order); // [v6.17] 更新卡片
+        } else {
+          const orderCard = createOrderCard(order);
+          orderCard.classList.add('card-enter'); // [v6.17] 加入動畫
+          ordersGrid.appendChild(orderCard);
+          currentOrderIds.add(order.orderName);
+        }
+      });
+    }
+    
+    /**
+     * (輔助) 建立卡片 (v7.2 100% 不變)
+     */
+    function createOrderCard(order) {
+      const card = document.createElement('div');
+      card.id = `order-${order.orderName}`;
+      card.className = `order-card border-2 rounded-lg shadow-lg flex flex-col`;
+      updateOrderCard(card, order); // [v6.17] 統一用 update 函式
+      return card;
+    }
+
+    /**
+     * (輔助) 建立品項 HTML (v7.2 100% 不變)
+     */
+    function createItemHtml(item) {
+      // [v6.17] 套餐邏輯
+      if (item.isCombo) {
+        let componentsHtml = '';
+        
+        // [v6.17] E餐 (1+1+1)
+        if (Array.isArray(item.components[0])) { 
+          item.components.forEach((componentSet, index) => {
+            componentsHtml += `
+              <li class="ml-4 text-yellow-300 text-lg">
+                <span class="font-semibold">(E餐 ${index + 1})</span> ${componentSet.join(' + ')}
+              </li>
+            `;
+          });
+        } 
+        // [v6.17] A餐 (固定)
+        else { 
+          componentsHtml = `
+            <li class="ml-4 text-cyan-300 text-lg">
+              ${item.components.join(' + ')}
+            </li>
+          `;
+        }
+
+        // [v6.30] 終極字體放大 (套餐)
+        return `
+          <div class="border border-gray-700 rounded-lg p-3">
+            <div class="flex justify-between items-center mb-1">
+              <span class="text-white font-bold text-2xl">${item.name}</span>
+              <span class="text-gray-300 font-bold text-2xl">x ${item.quantity}</span>
+            </div>
+            <ul class="list-disc list-inside">
+              ${componentsHtml || '<li class="text-red-400">! 找不到配方</li>'}
+            </ul>
+          </div>
+        `;
+      }
+      
+      // [v6.30] 終極字體放大 (一般品項)
+      return `
+        <div class="flex justify-between items-center text-2xl">
+          <span class="text-white font-semibold">${item.name}</span>
+          <span class="text-gray-300 font-bold">x ${item.quantity}</span>
+        </div>
+      `;
+    }
+
+    /**
+     * (輔助) [v6.17] 更新現有卡片 (v7.2 100% 不變)
+     */
+    function updateOrderCard(card, order) {
+      const isPreparing = order.status === 'preparing';
+
+      // 1. 標頭
+      // [v6.30] 終極字體放大
+      const headerHtml = `
+        <div class="p-4 border-b">
+          <h2 class="text-4xl font-extrabold">${order.pickupNumber}</h2>
+          <p class="text-lg text-gray-400">${order.orderName}</p>
+        </div>
+      `;
+      
+      // 2. 項目列表 (v6.17 移除 max-h-96)
+      const itemsHtml = `
+        <div class="p-4 flex-1 space-y-3">
+          ${order.items.map(createItemHtml).join('')}
+        </div>
+      `;
+      
+      // 3. 按鈕
+      const buttonHtml = `
+        <div class="p-4 mt-auto border-t">
+          <button class="w-full font-bold text-2xl py-4 rounded-lg transition duration-150 shadow-lg ${
+            isPreparing 
+              ? 'bg-green-600 hover:bg-green-700 text-white' 
+              : 'bg-blue-600 hover:bg-blue-700 text-white'
+          }">
+            ${isPreparing ? '完成 (Ready)' : '接單 (Preparing)'}
+          </button>
+        </div>
+      `;
+
+      // 4. 設定卡片顏色
+      const newClasses = isPreparing 
+        ? 'bg-orange-900 border-orange-700' 
+        : 'bg-blue-900 border-blue-700';
+      
+      card.className = `order-card border-2 rounded-lg shadow-lg flex flex-col ${newClasses}`;
+      
+      // 5. 組合
+      card.innerHTML = headerHtml + itemsHtml + buttonHtml;
+      
+      // 6. 重新綁定事件
+      const button = card.querySelector('button');
+      // [v7.2] 100% 綁定 API 呼叫
+      button.onclick = () => markOrderReady(button, order.orderName, isPreparing ? 'ready' : 'preparing');
+      
+      // 7. 標頭顏色
+      const headerEl = card.querySelector('.p-4.border-b');
+      const titleEl = card.querySelector('h2');
+      headerEl.className = `p-4 border-b ${isPreparing ? 'border-orange-700' : 'border-blue-700'}`;
+      titleEl.className = `text-4xl font-extrabold ${isPreparing ? 'text-orange-300' : 'text-blue-300'}`;
+      card.querySelector('.p-4.mt-auto').className = `p-4 mt-auto border-t ${isPreparing ? 'border-orange-700' : 'border-blue-700'}`;
+    }
+    
+    /**
+     * 5. [v7.2] (Cloudflare Proxy) 更新訂單狀態
+     */
+    async function markOrderReady(buttonEl, orderName, newStatus) {
+      if (refreshInterval) clearInterval(refreshInterval);
+      
+      buttonEl.disabled = true;
+      buttonEl.textContent = '更新中...';
+      buttonEl.classList.remove('bg-blue-600', 'hover:bg-blue-700', 'bg-green-600', 'hover:bg-green-700');
+      buttonEl.classList.add('bg-gray-500', 'cursor-not-allowed');
+
+      try {
+        // [v7.2] 100% 移除 google.script.run，改用 apiPost()
+        const response = await apiPost('updateOrderStatus', { orderName, newStatus });
+        onUpdateSuccess(response, buttonEl, orderName, newStatus);
+      } catch (error) {
+        onOrdersFailure(error);
+      }
+    }
+    
+    /**
+     * 6. 更新狀態成功 (v7.2 100% 不變)
+     */
+    function onUpdateSuccess(response, buttonEl, orderName, newStatus) {
+      // [v7.1] (API 升級) response 100% 是 { success: true, ... }
+      // (v7.1 這裡的 response 100% 已經是 data 了)
+      
+      if (newStatus === 'preparing') {
+        // 1. 剛剛按下了 "接單"
+        // (v6.17) KDS 不再移除卡片，而是呼叫 fetchOrders() 來更新
+        fetchOrders(); 
+        
+      } else if (newStatus === 'ready') {
+        // 2. 剛剛按下了 "完成"
+        const card = document.getElementById(`order-${orderName}`);
+        if (card) {
+          card.remove();
+          currentOrderIds.delete(orderName); // [v6.17]
+        }
+        if (ordersGrid.childElementCount === 0) {
+          showNoOrdersMessage();
+        }
+      }
+      
+      startTimer();
+    }
+
+    /**
+     * 7. [v7.2] (Cloudflare Proxy) 處理所有失敗
+     */
+    function onOrdersFailure(error) {
+      if (refreshInterval) clearInterval(refreshInterval); 
+      
+      let msg = error.message || (typeof error === 'string' ? error : '發生未知錯誤。');
+      
+      console.error('API 執行失敗:', error);
+      errorMessageEl.textContent = `無法完成操作：${msg}`;
+      errorModal.classList.remove('hidden');
+      
+      // 發生錯誤後，強制重載，避免狀態不一致
+      fetchOrders();
+      startTimer();
+    }
+
+  </script>
+</body>
+</html>
