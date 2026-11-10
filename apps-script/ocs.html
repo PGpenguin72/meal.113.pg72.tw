@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- [v6.17] 系統命名 -->
+  <title>OCS (叫號) | 壹參壹參 小食部</title>
+  <style>
+    body {
+      font-family: 'Inter', 'Noto Sans TC', sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+      /* [v6.15] 螢幕恆亮 (如果瀏覽器支援) */
+      touch-action: none;
+    }
+    /* 叫號動畫 */
+    .call-out {
+      animation: pulse 1s ease-in-out;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.1); opacity: 0.7; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+  </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex flex-col">
+
+  <!-- [v1.1] 全螢幕提示 -->
+  <div id="fullscreen-prompt" class="fixed inset-0 bg-gray-900 bg-opacity-95 flex justify-center items-center z-50 cursor-pointer">
+    <div class="text-center animate-pulse">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-24 h-24 mx-auto mb-4 text-gray-400">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75v4.5m0-4.5h-4.5m4.5 0L15 9m5.25 11.25v-4.5m0 4.5h-4.5m4.5 0L15 15" />
+      </svg>
+      <h2 class="text-4xl font-bold text-white mb-2">點擊進入全螢幕</h2>
+      <p class="text-xl text-gray-300">為了最佳體驗，將會啟用全螢幕及語音播報</p>
+    </div>
+  </div>
+
+  <!-- 頂部標題欄 -->
+  <header class="bg-gray-800 shadow-md p-4 flex justify-between items-center sticky top-0 z-10">
+    <!-- [v6.17] 系統命名 -->
+    <h1 class="text-4xl font-bold">訂單狀態 | 壹參壹參</h1>
+    <div id="connection-status" class="text-green-400 font-semibold text-xl">
+      ● 連線中
+    </div>
+  </header>
+
+  <!-- 兩個主要欄位 -->
+  <main class="flex-1 flex">
+    
+    <!-- 1. 準備中 (Preparing) -->
+    <div class="w-1/2 bg-gray-900 p-6 flex flex-col border-r border-gray-700">
+      <h2 class="text-5xl font-extrabold text-orange-400 mb-6 text-center">準備中</h2>
+      <div id="preparing-list" class="flex-1 grid grid-cols-3 gap-4 auto-rows-min">
+        <!-- 號碼牌將由 JS 動態產生 -->
+        <div class="p-6 bg-gray-800 rounded-lg text-center shadow-lg">
+          <span class="text-6xl font-bold text-gray-300">--</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 2. 待取餐 (Ready for Pickup) -->
+    <div class="w-1/2 bg-gray-800 p-6 flex flex-col">
+      <h2 class="text-5xl font-extrabold text-green-400 mb-6 text-center">待取餐</h2>
+      <div id="ready-list" class="flex-1 grid grid-cols-3 gap-4 auto-rows-min">
+        <!-- 號碼牌將由 JS 動態產生 -->
+      </div>
+    </div>
+    
+  </main>
+  
+  <!-- [v6.17] 版權 -->
+  <footer class="text-center text-sm text-gray-500 p-4">
+    © ArcantStudio | 極區工作室 2025 製作
+  </footer>
+  
+  <!-- 錯誤/載入中 遮罩 -->
+  <div id="loading-overlay" class="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 hidden">
+    <div class="text-center">
+      <h3 id="loading-title" class="text-4xl font-bold mb-4 text-red-400">連線錯誤</h3>
+      <p id="loading-message" class="text-2xl text-gray-300">
+        無法獲取訂單。
+      </p>
+    </div>
+  </div>
+
+
+  <script>
+    const REFRESH_INTERVAL_SECONDS = 5; // OCS 刷新頻率 (10秒)
+    
+    let refreshInterval;
+    let lastReadySet = new Set(); // 儲存上一批 "待取餐" 的號碼
+    let synth = window.speechSynthesis; // 語音
+
+    const preparingListEl = document.getElementById('preparing-list');
+    const readyListEl = document.getElementById('ready-list');
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const loadingTitle = document.getElementById('loading-title');
+    const loadingMessage = document.getElementById('loading-message');
+    const connectionStatusEl = document.getElementById('connection-status');
+    const fullscreenPrompt = document.getElementById('fullscreen-prompt'); // [v1.1]
+
+    document.addEventListener('DOMContentLoaded', () => {
+      // [v1.1] 監聽全螢幕提示
+      fullscreenPrompt.addEventListener('click', () => {
+        // 1. 啟用全螢幕
+        if (document.documentElement.requestFullscreen) {
+          document.documentElement.requestFullscreen().catch(err => {
+            console.error(`全螢幕失敗: ${err.message} (${err.name})`);
+          });
+        }
+        
+        // 2. 預熱語音
+        if (synth.speaking) synth.cancel();
+        speakMessage(" "); // 預熱
+        
+        // 3. 隱藏提示
+        fullscreenPrompt.style.display = 'none';
+        
+        // 4. [v1.1] 點擊後才開始載入
+        fetchOcsOrders(); 
+        startTimer(); 
+        
+      }, { once: true }); // 只執行一次
+    });
+
+    /**
+     * 1. 開始自動刷新計時器
+     */
+    function startTimer() {
+      if (refreshInterval) clearInterval(refreshInterval); 
+      
+      refreshInterval = setInterval(() => {
+        fetchOcsOrders();
+      }, REFRESH_INTERVAL_SECONDS * 1000);
+    }
+
+    /**
+     * 2. [API 呼叫] 獲取 OCS 訂單
+     */
+    function fetchOcsOrders() {
+      google.script.run
+        .withSuccessHandler(onOrdersSuccess)
+        .withFailureHandler(onOrdersFailure)
+        .getOcsOrders();
+    }
+    
+    /**
+     * 3. 獲取訂單成功，渲染畫面
+     */
+    function onOrdersSuccess(data) {
+      hideLoading(); // 隱藏錯誤 (如果有的話)
+      
+      const { preparingOrders, readyOrders } = data;
+
+      // --- 1. 渲染「準備中」 (降冪，最新優先) ---
+      preparingListEl.innerHTML = ''; // 清空
+      if (preparingOrders.length === 0) {
+        preparingListEl.innerHTML = `
+          <div class="col-span-3 p-6 bg-gray-800 rounded-lg text-center shadow-lg">
+            <span class="text-6xl font-bold text-gray-400">--</span>
+          </div>`;
+      } else {
+        preparingOrders.forEach(order => {
+          preparingListEl.innerHTML += `
+            <div class="p-6 bg-gray-800 rounded-lg text-center shadow-lg">
+              <span class="text-7xl font-bold text-orange-300">#${order.pickupNumber}</span>
+            </div>
+          `;
+        });
+      }
+      
+      // --- 2. 渲染「待取餐」 ---
+      readyListEl.innerHTML = ''; // 清空
+      const newReadySet = new Set();
+      
+      if (readyOrders.length === 0) {
+        // (保持空白)
+      } else {
+        readyOrders.forEach(order => {
+          newReadySet.add(order.pickupNumber.toString()); // 加入 Set
+          readyListEl.innerHTML += `
+            <div id="pickup-${order.pickupNumber}" class="p-6 bg-green-800 rounded-lg text-center shadow-lg border-2 border-green-600">
+              <span class="text-7xl font-bold text-white">#${order.pickupNumber}</span>
+            </div>
+          `;
+        });
+      }
+      
+      // --- 3. [v6.15] (Q2) 檢查新號碼並播報語音 ---
+      const newlyReadyNumbers = [];
+      newReadySet.forEach(number => {
+        if (!lastReadySet.has(number)) {
+          newlyReadyNumbers.push(number); // 這是新號碼
+        }
+      });
+      
+      if (newlyReadyNumbers.length > 0) {
+        // 動畫
+        newlyReadyNumbers.forEach(num => {
+          const el = document.getElementById(`pickup-${num}`);
+          if(el) el.classList.add('call-out');
+        });
+        
+        // 語音
+        const message = newlyReadyNumbers.join(' 號、 ') + ' 號，請取餐。';
+        speakMessage(message);
+      }
+      
+      lastReadySet = newReadySet; // 更新上一批號碼
+    }
+
+    /**
+     * 4. [v6.15] (Q1) 播報語音
+     */
+    function speakMessage(message) {
+      try {
+        if (synth.speaking) {
+          synth.cancel(); // 取消上一句
+        }
+        const utterThis = new SpeechSynthesisUtterance(message);
+        utterThis.lang = 'zh-TW'; // 台灣中文
+        utterThis.rate = 1.1;
+        synth.speak(utterThis);
+      } catch (e) {
+        console.error("語音播報失敗:", e);
+      }
+    }
+
+    /**
+     * 5. 處理失敗
+     */
+    function onOrdersFailure(error) {
+      let msg = error.message || (typeof error === 'string' ? error : '發生未知錯誤。');
+      console.error('GAS 執行失敗:', error);
+      showLoading(`連線錯誤`, `無法獲取訂單：${msg}`);
+    }
+    
+    /**
+     * 輔助 - 顯示/隱藏 遮罩
+     */
+    function showLoading(title, message) {
+       connectionStatusEl.textContent = "● 連線錯誤";
+       connectionStatusEl.classList.remove('text-green-400');
+       connectionStatusEl.classList.add('text-red-400');
+       
+       loadingTitle.textContent = title;
+       loadingMessage.textContent = message;
+       loadingOverlay.classList.remove('hidden');
+    }
+    
+    function hideLoading() {
+       connectionStatusEl.textContent = "● 連線中";
+       connectionStatusEl.classList.add('text-green-400');
+       connectionStatusEl.classList.remove('text-red-400');
+       loadingOverlay.classList.add('hidden');
+    }
+
+  </script>
+</body>
+</html>
+

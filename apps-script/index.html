@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- 載入 Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- 載入 Icon (Heroicons) -->
+  <script src="https://unpkg.com/heroicons@2.1.3/24/outline/index.js"></script>
+  
+  <!-- [v6.17] 系統命名 -->
+  <title>壹參壹參 | 一閃一閃 小食部</title>
+  <style>
+    /* 自訂義樣式 */
+    body {
+      font-family: 'Inter', 'Noto Sans TC', sans-serif;
+      /* [Req 2] 關閉文字選取 */
+      user-select: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+    }
+    /* 載入動畫 */
+    .loader {
+      border-top-color: #3498db;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    /* E餐選擇按鈕 */
+    .e-combo-item.selected {
+      background-color: #2563eb; /* blue-600 */
+      color: white;
+      font-weight: 600;
+    }
+    /* [Req 4] 庫存為 0 的按鈕 */
+    .menu-item.out-of-stock {
+      opacity: 0.5;
+      background-color: #e5e7eb; /* gray-200 */
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+    .menu-item.out-of-stock:hover {
+      box-shadow: none;
+    }
+    
+    /* E餐 庫存為 0 的按鈕 */
+    .e-combo-item:disabled {
+      opacity: 0.5;
+      background-color: #e5e7eb; /* gray-200 */
+      cursor: not-allowed;
+      text-decoration: line-through;
+    }
+
+  </style>
+</head>
+<body class="bg-gray-100 flex h-screen overflow-hidden">
+
+  <!-- 1. 左側：菜單區 -->
+  <div class="w-2/3 flex flex-col p-4">
+    <!-- [v6.17] 系統命名 -->
+    <h1 class="text-4xl font-bold text-gray-800 mb-4">壹參壹參 | 一閃一閃 小食部</h1>
+    
+    <!-- 菜單類別頁籤 -->
+    <div id="category-tabs" class="mb-4 border-b border-gray-300">
+      <!-- 頁籤將由 JS 動態產生 -->
+      <nav class="flex space-x-4" aria-label="Tabs"></nav>
+    </div>
+    
+    <!-- 菜單項目 -->
+    <div id="menu-items" class="flex-1 overflow-y-auto pr-2">
+      <!-- 項目網格將由 JS 動態產生 -->
+    </div>
+  </div>
+
+  <!-- 2. 右側：訂單與結帳區 -->
+  <div class="w-1/3 bg-white border-l border-gray-200 flex flex-col shadow-lg">
+    
+    <!-- 訂單標題 -->
+    <div class="p-4 border-b border-gray-200">
+      <h2 class="text-3xl font-bold text-gray-900">目前訂單</h2>
+    </div>
+    
+    <!-- 訂單項目列表 -->
+    <div id="cart-items" class="flex-1 overflow-y-auto p-4 space-y-3">
+      <p id="cart-empty-msg" class="text-gray-500 text-center pt-8 text-lg">尚未新增任何項目</p>
+    </div>
+    
+    <!-- 總計與結帳 -->
+    <div class="p-4 bg-gray-50 border-t border-gray-200 space-y-4">
+      <div class="flex justify-between items-center text-3xl font-bold">
+        <span>總計：</span>
+        <span id="cart-total">$0</span>
+      </div>
+      
+      <!-- 按鈕 -->
+      <div class="grid grid-cols-2 gap-3">
+        <button 
+          id="clear-cart-btn"
+          class="w-full bg-red-100 text-red-700 font-semibold py-4 rounded-lg shadow-sm hover:bg-red-200 transition duration-150 disabled:opacity-50 disabled:cursor-not-allowed text-xl">
+          清空
+        </button>
+        <button 
+          id="checkout-btn"
+          class="w-full bg-blue-600 text-white font-semibold py-4 rounded-lg shadow-sm hover:bg-blue-700 transition duration-150 disabled:opacity-50 disabled:cursor-not-allowed text-xl">
+          結帳 (送出)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. 彈出式視窗 (Modal) -->
+  
+  <!-- 3A. 載入中... -->
+  <div id="loading-overlay" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex justify-center items-center z-50">
+    <div class="loader ease-linear rounded-full border-8 border-t-8 border-gray-200 h-24 w-24"></div>
+    <span id="loading-message" class="text-white text-2xl ml-4 font-semibold">載入菜單中...</span>
+  </div>
+
+  <!-- 3B. 現金結帳視窗 -->
+  <div id="payment-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex justify-center items-center z-50 hidden">
+    <!-- [!!] 調整：加寬視窗 -->
+    <div class="bg-white p-6 rounded-lg shadow-2xl w-full max-w-2xl"> 
+      <h3 class="text-3xl font-bold mb-6 text-center">現金結帳</h3>
+      
+      <div class="space-y-4">
+        <div class="text-4xl font-bold text-center p-4 bg-gray-100 rounded-lg">
+          <span>應付金額：</span>
+          <span id="payment-total" class="text-blue-600">$0</span>
+        </div>
+        
+        <!-- [!!] 結帳輸入區 -->
+        <div class="grid grid-cols-2 gap-4">
+          
+          <!-- 左側: 數字鍵盤 -->
+          <div class="space-y-2">
+            <div>
+              <label for="cash-received" class="block text-base font-medium text-gray-700">實收金額：</label>
+              <input 
+                type="number" 
+                id="cash-received" 
+                placeholder="請使用下方按鈕輸入"
+                class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none text-4xl text-center bg-gray-100 font-mono"
+                readonly> <!-- [!!] 設為 readonly 防止平板鍵盤跳出 -->
+            </div>
+            
+            <!-- [!!] 調整：加大按鈕 padding 和字體 -->
+            <div class="grid grid-cols-3 gap-2">
+              <button class="keypad-btn bg-gray-200 text-gray-800 font-bold py-7 rounded-lg hover:bg-gray-300 transition text-4xl" data-value="1">1</button>
+              <button class="keypad-btn bg-gray-200 text-gray-800 font-bold py-7 rounded-lg hover:bg-gray-300 transition text-4xl" data-value="2">2</button>
+              <button class="keypad-btn bg-gray-200 text-gray-800 font-bold py-7 rounded-lg hover:bg-gray-300 transition text-4xl" data-value="3">3</button>
+              <button class="keypad-btn bg-gray-200 text-gray-800 font-bold py-7 rounded-lg hover:bg-gray-300 transition text-4xl" data-value="4">4</button>
+              <button class="keypad-btn bg-gray-200 text-gray-800 font-bold py-7 rounded-lg hover:bg-gray-300 transition text-4xl" data-value="5">5</button>
+              <button class="keypad-btn bg-gray-200 text-gray-800 font-bold py-7 rounded-lg hover:bg-gray-300 transition text-4xl" data-value="6">6</button>
+              <button class="keypad-btn bg-gray-200 text-gray-800 font-bold py-7 rounded-lg hover:bg-gray-300 transition text-4xl" data-value="7">7</button>
+              <button class="keypad-btn bg-gray-200 text-gray-800 font-bold py-7 rounded-lg hover:bg-gray-300 transition text-4xl" data-value="8">8</button>
+              <button class="keypad-btn bg-gray-200 text-gray-800 font-bold py-7 rounded-lg hover:bg-gray-300 transition text-4xl" data-value="9">9</button>
+              <button class="keypad-btn bg-gray-200 text-gray-800 font-bold py-7 rounded-lg hover:bg-gray-300 transition text-4xl" data-value="C">C</button>
+              <button class="keypad-btn bg-gray-200 text-gray-800 font-bold py-7 rounded-lg hover:bg-gray-300 transition text-4xl" data-value="0">0</button>
+              <button class="keypad-btn bg-gray-200 text-gray-800 font-bold py-7 rounded-lg hover:bg-gray-300 transition text-4xl" data-value="00">00</button>
+            </div>
+          </div>
+          
+          <!-- 右側: 快速按鈕 & 找零 -->
+          <!-- [!!] 調整：移除 h-1/4, 調整 padding 和字體 -->
+          <div class="flex flex-col space-y-3">
+            <button class="quick-cash-btn bg-blue-100 text-blue-700 font-semibold py-6 rounded-lg hover:bg-blue-200 transition text-2xl" data-amount="exact">剛好</button>
+            <button class="quick-cash-btn bg-blue-100 text-blue-700 font-semibold py-6 rounded-lg hover:bg-blue-200 transition text-2xl" data-amount="100">100</button>
+            <button class="quick-cash-btn bg-blue-100 text-blue-700 font-semibold py-6 rounded-lg hover:bg-blue-200 transition text-2xl" data-amount="500">500</button>
+            <button class="quick-cash-btn bg-blue-100 text-blue-700 font-semibold py-6 rounded-lg hover:bg-blue-200 transition text-2xl" data-amount="1000">1000</button>
+            
+            <div class="text-4xl font-semibold text-center p-4 bg-green-100 text-green-800 rounded-lg flex flex-col justify-center min-h-[100px]">
+              <span>應找零：</span>
+              <span id="payment-change" class="font-bold">$0</span>
+            </div>
+          </div>
+          
+        </div>
+      </div>
+
+      <div class="mt-8 grid grid-cols-2 gap-4">
+        <button id="cancel-payment-btn" class="w-full bg-gray-200 text-gray-800 font-semibold py-4 rounded-lg hover:bg-gray-300 transition text-xl">
+          取消
+        </button>
+        <button 
+          id="confirm-payment-btn" 
+          class="w-full bg-green-600 text-white font-semibold py-4 rounded-lg hover:bg-green-700 transition disabled:opacity-50 text-xl">
+          確認送出訂單
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3C. 訂單成功視窗 -->
+  <div id="success-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex justify-center items-center z-50 hidden">
+    <div class="bg-white p-8 rounded-lg shadow-2xl w-full max-w-md text-center">
+      <div class="w-24 h-24 bg-green-100 rounded-full p-4 flex items-center justify-center mx-auto mb-6">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-16 h-16 text-green-600">
+          <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+        </svg>
+      </div>
+      <h3 class="text-4xl font-bold mb-4 text-gray-900">訂單已送出！</h3>
+      <p class="text-2xl text-gray-600 mb-2">顧客取餐號碼：</p>
+      <div id="pickup-number-display" class="text-9xl font-extrabold text-blue-600 mb-8">
+        --
+      </div>
+      <button id="close-success-btn" class="w-full bg-blue-600 text-white font-semibold py-4 rounded-lg hover:bg-blue-700 transition text-2xl">
+        完成 (關閉)
+      </button>
+    </div>
+  </div>
+
+  <!-- 3D. 錯誤視窗 -->
+  <div id="error-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex justify-center items-center z-50 hidden">
+    <div class="bg-white p-8 rounded-lg shadow-2xl w-full max-w-md text-center">
+       <div class="w-24 h-24 bg-red-100 rounded-full p-4 flex items-center justify-center mx-auto mb-6">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-16 h-16 text-red-600">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+        </svg>
+      </div>
+      <h3 class="text-3xl font-bold mb-4 text-gray-900">發生錯誤</h3>
+      <p id="error-message" class="text-lg text-gray-600 mb-8">
+        無法提交訂單。
+      </p>
+      <button id="close-error-btn" class="w-full bg-gray-500 text-white font-semibold py-3 rounded-lg hover:bg-gray-600 transition text-xl">
+        關閉
+      </button>
+    </div>
+  </div>
+
+  <!-- 3E. E餐 (1+1+1) 選擇視窗 -->
+  <div id="e-combo-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 flex justify-center items-center z-50 hidden">
+    <div class="bg-white p-6 rounded-lg shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-3xl font-bold text-gray-900">E餐 (1+1+1) 選擇</h3>
+        <button id="close-e-combo-btn" class="text-gray-400 hover:text-gray-600">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-7 h-7">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto space-y-4 pr-2">
+        <!-- $15 區 -->
+        <div>
+          <h4 class="text-xl font-semibold text-gray-700 mb-2 p-2 bg-gray-100 rounded">$15 區 (請選 1)</h4>
+          <div id="e-combo-15" class="grid grid-cols-4 gap-2">
+            <!-- $15 items go here -->
+          </div>
+        </div>
+        <!-- $20 區 -->
+        <div>
+          <h4 class="text-xl font-semibold text-gray-700 mb-2 p-2 bg-gray-100 rounded">$20 區 (請選 1)</h4>
+          <div id="e-combo-20" class="grid grid-cols-4 gap-2">
+            <!-- $20 items go here -->
+          </div>
+        </div>
+        <!-- $25 區 -->
+        <div>
+          <h4 class="text-xl font-semibold text-gray-700 mb-2 p-2 bg-gray-100 rounded">$25 區 (請選 1)</h4>
+          <div id="e-combo-25" class="grid grid-cols-4 gap-2">
+            <!-- $25 items go here -->
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-6 pt-4 border-t border-gray-200 flex justify-between items-center">
+        <div class="font-semibold text-2xl">
+          套餐總價: <span id="e-combo-price" class="text-blue-600">$0</span>
+        </div>
+        <button id="confirm-e-combo-btn" class="bg-green-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed text-xl">
+          加入套餐
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- [v6.17] 版權 -->
+  <footer class="absolute bottom-0 left-0 p-2 text-gray-500 text-sm">
+    © ArcantStudio | 極區工作室 2025 製作
+  </footer>
+
+
+  <script>
+    // --- 全域變數 ---
+    let menu = []; // [v4] 完整的菜單資料 (包含庫存 和 components)
+    let cart = []; // 目前的購物車
+    let currentCategory = 'all'; // 目前選擇的類別
+    
+    // E餐相關
+    let eComboSelection = { 15: null, 20: null, 25: null }; // 儲存 E餐 選擇
+    let eComboBaseItem = null; // 儲存 E餐 的基本資料 (name, price, stock, components)
+
+
+    // --- DOM 元素 ---
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const loadingMessage = document.getElementById('loading-message');
+    const categoryTabsContainer = document.getElementById('category-tabs').querySelector('nav');
+    const menuItemsContainer = document.getElementById('menu-items');
+    const cartItemsContainer = document.getElementById('cart-items');
+    const cartEmptyMsg = document.getElementById('cart-empty-msg');
+    const cartTotalEl = document.getElementById('cart-total');
+    const clearCartBtn = document.getElementById('clear-cart-btn');
+    const checkoutBtn = document.getElementById('checkout-btn');
+    
+    // 付款 Modal
+    const paymentModal = document.getElementById('payment-modal');
+    const paymentTotalEl = document.getElementById('payment-total');
+    const cashReceivedInput = document.getElementById('cash-received');
+    const paymentChangeEl = document.getElementById('payment-change');
+    const cancelPaymentBtn = document.getElementById('cancel-payment-btn');
+    const confirmPaymentBtn = document.getElementById('confirm-payment-btn');
+    
+    // 成功 Modal
+    const successModal = document.getElementById('success-modal');
+    const pickupNumberDisplay = document.getElementById('pickup-number-display');
+    const closeSuccessBtn = document.getElementById('close-success-btn');
+
+    // 錯誤 Modal
+    const errorModal = document.getElementById('error-modal');
+    const errorMessageEl = document.getElementById('error-message');
+    const closeErrorBtn = document.getElementById('close-error-btn');
+    
+    // E餐 Modal
+    const eComboModal = document.getElementById('e-combo-modal');
+    const closeEComboBtn = document.getElementById('close-e-combo-btn');
+    const confirmEComboBtn = document.getElementById('confirm-e-combo-btn');
+    const eCombo15Container = document.getElementById('e-combo-15');
+    const eCombo20Container = document.getElementById('e-combo-20');
+    const eCombo25Container = document.getElementById('e-combo-25');
+    const eComboPriceEl = document.getElementById('e-combo-price');
+
+
+    // --- 事件監聽 ---
+    document.addEventListener('DOMContentLoaded', initialize);
+    clearCartBtn.addEventListener('click', clearCart);
+    checkoutBtn.addEventListener('click', showPaymentModal);
+    
+    // 付款 Modal
+    cancelPaymentBtn.addEventListener('click', hidePaymentModal);
+    confirmPaymentBtn.addEventListener('click', handleConfirmPayment);
+    
+    // 結帳鍵盤事件
+    document.querySelectorAll('.keypad-btn').forEach(btn => {
+      btn.addEventListener('click', () => handleKeypadClick(btn.dataset.value));
+    });
+    document.querySelectorAll('.quick-cash-btn').forEach(btn => {
+      btn.addEventListener('click', () => handleQuickCashClick(btn.dataset.amount));
+    });
+
+    // 成功/錯誤 Modal
+    closeSuccessBtn.addEventListener('click', () => {
+      successModal.classList.add('hidden');
+      clearCart(); // 成功後清空購物車
+    });
+    closeErrorBtn.addEventListener('click', () => {
+      errorModal.classList.add('hidden');
+    });
+    
+    // E餐 Modal
+    closeEComboBtn.addEventListener('click', () => eComboModal.classList.add('hidden'));
+    confirmEComboBtn.addEventListener('click', confirmECombo);
+
+    
+    // --- 核心功能 ---
+
+    /**
+     * 1. 頁面初始化：獲取菜單
+     */
+    function initialize() {
+      showLoading('載入菜單中...');
+      google.script.run
+        .withSuccessHandler(onMenuSuccess)
+        .withFailureHandler(onFailure)
+        .getMenuItems();
+    }
+
+    /**
+     * 2. 成功獲取菜單
+     */
+    function onMenuSuccess(menuItems) {
+      hideLoading();
+      if (!menuItems) { 
+        showError("無法載入菜單 (回傳資料為空)。請檢查 '菜單' 工作表。");
+        menu = []; 
+        return;
+      }
+      menu = menuItems; // [v4] menu 現在包含 "真實庫存" 和 "components"
+      renderCategoryTabs();
+      renderMenuItems();
+      updateCartView(); // 初始更新購物車 (應為空)
+    }
+
+    /**
+     * 3. 渲染菜單類別頁籤
+     */
+    function renderCategoryTabs() {
+      const categories = ['all', ...new Set(menu.map(item => item.category))];
+      categoryTabsContainer.innerHTML = ''; // 清空
+
+      categories.forEach(category => {
+        const isSelected = category === currentCategory;
+        const tab = document.createElement('button');
+        tab.textContent = category === 'all' ? '全部' : category;
+        // [!] 加大字體
+        tab.className = `px-4 py-2 font-semibold text-2xl rounded-t-lg transition-colors duration-150 ${
+          isSelected
+            ? 'border-b-4 border-blue-600 text-blue-600'
+            : 'text-gray-500 hover:text-gray-700'
+        }`;
+        tab.onclick = () => {
+          currentCategory = category;
+          renderCategoryTabs(); // 重繪頁籤
+          renderMenuItems(); // 重繪項目
+        };
+        categoryTabsContainer.appendChild(tab);
+      });
+    }
+
+    /**
+     * 4. 渲染菜單項目
+     */
+    function renderMenuItems() {
+      menuItemsContainer.innerHTML = ''; // 清空
+
+      const filteredMenu = menu.filter(item => 
+        currentCategory === 'all' || item.category === currentCategory
+      );
+
+      if (filteredMenu.length === 0) {
+        menuItemsContainer.innerHTML = `<p class="text-gray-500 text-lg">此類別下沒有項目。</p>`;
+        return;
+      }
+      
+      // [Req 3] 固定 4 欄
+      const grid = document.createElement('div');
+      grid.className = 'grid grid-cols-4 gap-3'; 
+
+      filteredMenu.forEach(item => {
+        const button = document.createElement('button');
+        
+        // [v6.4] 庫存檢查 (使用 "有效庫存" helper)
+        const cartCounts = getCartItemCounts();
+        const effectiveStock = getEffectiveStock(item, cartCounts);
+        const isOutOfStock = effectiveStock <= 0;
+        
+        button.className = `menu-item bg-white p-4 rounded-lg shadow-md hover:shadow-lg hover:bg-blue-50 transition-all duration-150 flex flex-col justify-between items-center text-center min-h-32 ${
+          isOutOfStock ? 'out-of-stock' : ''
+        }`;
+        
+        button.onclick = isOutOfStock ? null : () => addToCart(item);
+        
+        // [Req 3] 放大品名 & 價格
+        // [Req 4] 顯示庫存
+        // [v6.4] 顯示 "有效庫存"
+        button.innerHTML = `
+          <span class="font-semibold text-gray-800 text-xl leading-tight flex-1 flex items-center">${item.name}</span>
+          <div>
+            <span class="text-lg text-gray-700 mt-2">$${item.price}</span>
+            <span class="block text-sm ${isOutOfStock ? 'text-red-600' : 'text-gray-500'} mt-1">
+              ${isOutOfStock ? '已售完' : '庫存: ' + effectiveStock}
+            </span>
+          </div>
+        `;
+        grid.appendChild(button);
+      });
+      
+      menuItemsContainer.appendChild(grid);
+    }
+
+    /**
+     * 5. 更新購物車畫面
+     */
+    function updateCartView() {
+      cartItemsContainer.innerHTML = ''; // 清空
+      let total = 0;
+
+      if (cart.length === 0) {
+        cartEmptyMsg.classList.remove('hidden');
+        checkoutBtn.disabled = true;
+        clearCartBtn.disabled = true;
+      } else {
+        cartEmptyMsg.classList.add('hidden');
+        checkoutBtn.disabled = false;
+        clearCartBtn.disabled = false;
+        
+        cart.forEach(cartItem => {
+          total += cartItem.price * cartItem.quantity;
+          
+          const itemEl = document.createElement('div');
+          itemEl.className = 'flex justify-between items-center py-2 border-b border-gray-100';
+          
+          // [!] 加大字體
+          itemEl.innerHTML = `
+            <div class="flex-1 pr-2">
+              <div class="font-semibold text-gray-800 text-lg">${cartItem.name}</div>
+              <div class="text-base text-gray-500">$${cartItem.price} x ${cartItem.quantity}</div>
+            </div>
+            <div class="flex items-center space-x-2">
+              <button class="bg-gray-200 text-gray-700 w-9 h-9 rounded-full font-bold hover:bg-gray-300 flex-shrink-0 text-xl" onclick="updateCartItemQuantity('${cartItem.name}', -1)">-</button>
+              <span class="w-8 text-center font-medium text-xl">${cartItem.quantity}</span>
+              <button class="bg-gray-200 text-gray-700 w-9 h-9 rounded-full font-bold hover:bg-gray-300 flex-shrink-0 text-xl" onclick="updateCartItemQuantity('${cartItem.name}', 1)">+</button>
+              <button class="text-red-500 hover:text-red-700 ml-3 flex-shrink-0" onclick="removeCartItem('${cartItem.name}')">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79A2.25 2.25 0 0 1 7.016 3.7h10.068a2.25 2.25 0 0 1 2.244 2.09Z" />
+                </svg>
+              </button>
+            </div>
+          `;
+          cartItemsContainer.appendChild(itemEl);
+        });
+      }
+      
+      cartTotalEl.textContent = `$${total}`;
+      
+      // [v6.4] 更新購物車時，也重繪菜單 (為了即時更新庫存)
+      renderMenuItems();
+    }
+
+    /**
+     * 6. 加入購物車 (路由)
+     */
+    function addToCart(item) {
+      // [v6.4] 庫存檢查 (使用 "有效庫存" helper)
+      // [v6.20] G餐 (吃到飽) 跳過庫存檢查
+      if (!item.name.includes("G餐-內用吃到飽")) {
+        const cartCounts = getCartItemCounts();
+        const effectiveStock = getEffectiveStock(item, cartCounts);
+  
+        if (effectiveStock <= 0) {
+          showError(`${item.name} 已售完！`);
+          return;
+        }
+      }
+      
+      // [v6.3] 修正：E餐的 component 是 '15', '20', '25'
+      if (item.components && item.components[0] === "15") {
+        openEComboModal(item);
+      } else {
+        // 一般項目 或 固定套餐 (A餐) 或 G餐
+        addSimpleItemToCart(item);
+      }
+    }
+
+    /**
+     * 6B. 將「一般」或「固定套餐」項目加入購物車 (含庫存檢查)
+     */
+    function addSimpleItemToCart(item) {
+       const existingItem = cart.find(cartItem => cartItem.name === item.name);
+       const currentInCart = existingItem ? existingItem.quantity : 0;
+       
+       // [v6.4] 這裡的 item.stock 是來自 menu (後端) 的真實庫存
+       // 我們需要檢查的是 "有效庫存"
+       // [v6.20] G餐 (吃到飽) 跳過庫存檢查
+       if (!item.name.includes("G餐-內用吃到飽")) {
+         const cartCounts = getCartItemCounts();
+         const effectiveStock = getEffectiveStock(item, cartCounts);
+  
+         if (effectiveStock <= 0) { // 等同於 currentInCart + 1 > item.stock
+           showError(`${item.name} 庫存不足！ (目前庫存: ${item.stock}, 購物車: ${currentInCart})`);
+           return;
+         }
+       }
+      
+      if (existingItem) {
+        existingItem.quantity++;
+      } else {
+        // [Req 1] unshift
+        // [v4] type 標記
+        let type = (item.components && item.components.length > 0) ? 'fixed_combo' : 'simple';
+        
+        // [v6.20] G餐修復：標記 G餐，讓後端可以跳過 KDS
+        if (item.name.includes("G餐-內用吃到飽")) {
+          type = 'fixed_combo';
+        }
+        
+        cart.unshift({ ...item, quantity: 1, type: type }); 
+      }
+      
+      updateCartView();
+    }
+    
+    /**
+     * 6C. 將「彈性套餐 (E餐)」加入購物車 (含庫存檢查)
+     */
+    function addCustomItemToCart(itemObject) {
+      // [Req 1] 檢查是否存在同名的套餐 (e.g., E餐(海帶+蘿蔔+米血))
+      const existingItem = cart.find(cartItem => cartItem.name === itemObject.name);
+      
+      if (existingItem) {
+        // [v6.4] 庫存檢查 (使用 "有效庫存" helper)
+        const cartCounts = getCartItemCounts();
+        
+        // 檢查 E餐 "零件" 的庫存
+        const components = itemObject.components || []; // 這裡的 components 是 {name, price...} 物件
+        for (const component of components) {
+          // 找到 "菜單" 上的原始項目
+          const menuItem = menu.find(m => m.name === component.name);
+          if (!menuItem) continue; 
+          
+          const effectiveStock = getEffectiveStock(menuItem, cartCounts);
+          
+          // 如果 "有效庫存" <= 0，代表加這一個就會超過
+          if (effectiveStock <= 0) {
+             showError(`"${component.name}" 庫存不足！ (目前庫存: ${menuItem.stock}, 購物車: ${cartCounts[component.name] || 0})`);
+             return;
+          }
+        }
+        
+        // 庫存檢查通過
+        existingItem.quantity++;
+        
+      } else {
+        // [Req 1] unshift
+        cart.unshift({ ...itemObject, quantity: 1 });
+      }
+      updateCartView();
+    }
+
+    /**
+     * 7. 更新購物車項目數量 (含庫存檢查)
+     * [v6.4] 全面修復庫存檢查邏輯
+     */
+    function updateCartItemQuantity(itemName, change) {
+      const item = cart.find(cartItem => cartItem.name === itemName);
+      if (!item) return;
+      
+      const newQuantity = item.quantity + change;
+
+      if (newQuantity <= 0) {
+        removeCartItem(itemName); // 數量變 0 或更少，移除
+        return;
+      }
+      
+      // [v6.4] 增加數量時，檢查庫存 (邏輯升級)
+      // [v6.20] G餐 (吃到飽) 跳過庫存檢查
+      if (change > 0 && !item.name.includes("G餐-內用吃到飽")) {
+        
+        // 找出菜單上的原始項目 (為了拿 components 配方 和 stock)
+        const menuItem = menu.find(m => m.name === item.name);
+        
+        // [v6.4] 取得 "當下" 購物車中所有零件的總和
+        const cartCounts = getCartItemCounts();
+
+        // 1. 檢查 "基礎品項" (海帶)
+        if (item.type === 'simple') {
+          const originalStock = menuItem.stock;
+          const currentInCart = cartCounts[item.name] || 0;
+          if (currentInCart + 1 > originalStock) { // +1 是因為我們正要增加
+            showError(`"${menuItem.name}" 庫存不足！ (庫存: ${originalStock}, 購物車: ${currentInCart})`);
+            return;
+          }
+        }
+        // 2. 檢查 "固定套餐" (A餐)
+        else if (item.type === 'fixed_combo') {
+          // 檢查 A餐 本身的 "有效庫存"
+          const effectiveStock = getEffectiveStock(menuItem, cartCounts);
+          if (effectiveStock <= 0) { 
+            showError(`"${menuItem.name}" 庫存不足！ (庫存: ${menuItem.stock}, 購物車已用: ${item.quantity})`);
+            return;
+          }
+        }
+        // 3. 檢查 "彈性套餐" (E餐)
+        else if (item.type === 'combo') { // E餐 type 是 'combo'
+          
+          // 3a. 檢查 E餐 "總庫存" (最小值)
+          // [v6.5] 修正：eComboBaseItem 只有在彈窗開啟時才被設置。我們需要從 menu 中找到 E餐-1+1+1
+          const eComboBaseMenuItem = menu.find(m => m.name === "E餐-1+1+1"); // 找到 "E餐-1+1+1"
+          if (eComboBaseMenuItem) {
+            const effectiveEComboStock = getEffectiveStock(eComboBaseMenuItem, cartCounts);
+            if (effectiveEComboStock <= 0) {
+              const eComboInCart = cart.filter(ci => ci.type === 'combo').reduce((sum, ci) => sum + ci.quantity, 0);
+              showError(`"E餐" 總庫存不足！ (總庫存: ${eComboBaseMenuItem.stock}, 購物車已用: ${eComboInCart})`);
+              return;
+            }
+          }
+          
+          // 3b. 檢查 E餐 "零件" 庫存
+          const components = item.components || []; // 購物車中的 E餐 零件
+          for (const component of components) {
+            const componentMenuItem = menu.find(m => m.name === component.name);
+            const originalStock = componentMenuItem.stock;
+            const currentInCart = cartCounts[component.name] || 0;
+            
+            if (currentInCart + 1 > originalStock) {
+              showError(`"${component.name}" 庫存不足！ (庫存: ${originalStock}, 購物車: ${currentInCart})`);
+              return;
+            }
+          }
+        }
+      }
+      
+      // 庫存檢查通過，或是在減少數量
+      item.quantity = newQuantity;
+      updateCartView();
+    }
+
+    /**
+     * 8. 移除購物車項目
+     */
+    function removeCartItem(itemName) {
+      cart = cart.filter(cartItem => cartItem.name !== itemName);
+      updateCartView();
+    }
+
+    /**
+     * 9. 清空購物車
+     */
+    function clearCart() {
+      cart = [];
+      updateCartView();
+    }
+
+    /**
+     * 10. 顯示結帳視窗
+     */
+    function showPaymentModal() {
+      if (cart.length === 0) return;
+      
+      const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      paymentTotalEl.textContent = `$${total}`;
+      
+      // 重設輸入
+      cashReceivedInput.value = '0'; // [!] 預設為 0
+      paymentChangeEl.textContent = '$0';
+      confirmPaymentBtn.disabled = true; 
+      
+      paymentModal.classList.remove('hidden');
+    }
+
+    /**
+     * 11. 隱藏結帳視窗
+     */
+    function hidePaymentModal() {
+      paymentModal.classList.add('hidden');
+    }
+
+    /**
+     * 12. 計算找零
+     */
+    function calculateChange() {
+      const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const received = parseFloat(cashReceivedInput.value) || 0;
+      const change = received - total;
+
+      if (received === 0) {
+        paymentChangeEl.textContent = '$0';
+        confirmPaymentBtn.disabled = true; 
+      } else if (change < 0) {
+        paymentChangeEl.textContent = `不足 $${Math.abs(change)}`;
+        paymentChangeEl.classList.remove('text-green-800', 'bg-green-100');
+        paymentChangeEl.classList.add('text-red-800', 'bg-red-100');
+        confirmPaymentBtn.disabled = true;
+      } else {
+        paymentChangeEl.textContent = `$${change.toFixed(0)}`; 
+        paymentChangeEl.classList.add('text-green-800', 'bg-green-100');
+        paymentChangeEl.classList.remove('text-red-800', 'bg-red-100');
+        confirmPaymentBtn.disabled = false;
+      }
+    }
+
+    /**
+     * 12B. 處理數字鍵盤點擊
+     */
+    function handleKeypadClick(value) {
+      let currentValue = cashReceivedInput.value;
+      if (value === 'C') {
+        currentValue = '0';
+      } else if (currentValue === '0' && value !== '00') {
+        currentValue = value;
+      } else if (currentValue === '0' && value === '00') {
+        currentValue = '0'; 
+      } else {
+        currentValue += value;
+      }
+      cashReceivedInput.value = parseInt(currentValue, 10) || 0;
+      calculateChange();
+    }
+
+    /**
+     * 12C. 處理快速金額點擊
+     */
+    function handleQuickCashClick(amount) {
+      if (amount === 'exact') {
+        const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+        cashReceivedInput.value = total;
+      } else {
+        cashReceivedInput.value = amount;
+      }
+      calculateChange();
+    }
+
+
+    /**
+     * 13. 確認付款並送出訂單
+     * [v6.5] 新增: 傳送 item.category
+     */
+    function handleConfirmPayment() {
+      showLoading('訂單提交中...');
+      hidePaymentModal();
+      
+      const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      
+      // [v6.5] 準備要送出的資料 (包含 category)
+      const orderData = {
+        items: cart.map(item => ({ 
+          name: item.name, 
+          quantity: item.quantity, 
+          price: item.price,
+          type: item.type, // 'simple', 'fixed_combo', or 'combo'
+          components: item.type === 'combo' ? item.components : null, // 只有 E餐 需要傳 components
+          category: item.category // [v6.5] 新增！
+        })),
+        total: total
+      };
+
+      google.script.run
+        .withSuccessHandler(onSubmitSuccess)
+        .withFailureHandler(onFailure)
+        .submitOrder(JSON.stringify(orderData));
+    }
+
+    /**
+     * 14. 訂單提交成功
+     */
+    function onSubmitSuccess(response) {
+      hideLoading();
+      if (response.success) {
+        pickupNumberDisplay.textContent = response.pickupNumber || 'N/A';
+        successModal.classList.remove('hidden');
+        
+        // [Req 4] 訂單成功後，重新獲取菜單以更新庫存
+        showLoading('更新庫存中...'); // 顯示載入
+        google.script.run
+          .withSuccessHandler(onMenuSuccess) // 使用 onMenuSuccess 更新畫面
+          .withFailureHandler(onFailure)
+          .getMenuItems(); 
+          
+      } else {
+        // [Req 4] 顯示後端傳來的庫存不足等錯誤
+        onFailure(response); 
+      }
+    }
+    
+    // --- E餐 (1+1+1) 相關函式 ---
+
+    /**
+     * 15. 開啟 E餐 選擇視窗
+     */
+    function openEComboModal(item) {
+      eComboBaseItem = item; 
+      eComboSelection = { 15: null, 20: null, 25: null }; 
+      eComboPriceEl.textContent = `$${item.price}`; 
+      
+      // [v4] 修正：不過濾 "關東煮"，而是過濾 "非套餐"
+      const simpleItems = menu.filter(m => m.category !== '套餐');
+      
+      // [v6.4] 取得目前購物車佔用量
+      const cartCounts = getCartItemCounts();
+
+      // 渲染三個區域
+      renderComboGroup(eCombo15Container, simpleItems.filter(m => m.price === 15), 15, cartCounts);
+      renderComboGroup(eCombo20Container, simpleItems.filter(m => m.price === 20), 20, cartCounts);
+      renderComboGroup(eCombo25Container, simpleItems.filter(m => m.price === 25), 25, cartCounts);
+      
+      updateEComboModalUI(); 
+      eComboModal.classList.remove('hidden');
+    }
+
+    /**
+     * 16. 渲染套餐選擇區塊 (含庫存檢查)
+     * [v6.4] 顯示 "有效庫存"
+     */
+    function renderComboGroup(container, items, priceGroup, cartCounts) {
+      container.innerHTML = '';
+      if (items.length === 0) {
+        container.innerHTML = `<p class="text-gray-400 col-span-4 text-lg">此區沒有品項 (請檢查 '菜單' 工作表)</p>`;
+        return;
+      }
+      
+      items.forEach(item => {
+        const button = document.createElement('button');
+        
+        // [v6.4] 檢查 "有效庫存"
+        const originalStock = item.stock;
+        const inCart = cartCounts[item.name] || 0;
+        const effectiveStock = originalStock - inCart;
+        const isOutOfStock = effectiveStock <= 0;
+        
+        // [v6.3] 修改 class 以支援多行
+        button.className = `e-combo-item p-4 border rounded-lg text-center hover:bg-gray-100 transition text-lg flex flex-col justify-center items-center min-h-[5rem]`;
+        
+        // [v6.4] 顯示 "有效庫存"
+        button.innerHTML = `
+          <span class="font-medium">${item.name}</span>
+          <span class="text-sm ${isOutOfStock ? 'text-red-600' : 'text-gray-500'}">
+            ${isOutOfStock ? '已售完' : '庫存: ' + effectiveStock}
+          </span>
+        `;
+        
+        button.dataset.priceGroup = priceGroup;
+        button.dataset.itemName = item.name;
+        
+        button.disabled = isOutOfStock; // [Req 4] 沒庫存則禁用
+        button.onclick = () => selectEComboItem(priceGroup, item);
+        
+        container.appendChild(button);
+      });
+    }
+
+    /**
+     * 17. 選擇 E餐 項目
+     */
+    function selectEComboItem(priceGroup, selectedItem) {
+      eComboSelection[priceGroup] = selectedItem;
+      updateEComboModalUI();
+    }
+    
+    /**
+     * 18. 更新 E餐 Modal 畫面 (按鈕選中狀態、確認按鈕)
+     */
+    function updateEComboModalUI() {
+      // 1. 更新按鈕選中狀態
+      document.querySelectorAll(`#e-combo-modal .e-combo-item`).forEach(btn => {
+        const priceGroup = btn.dataset.priceGroup;
+        const itemName = btn.dataset.itemName;
+        const selected = eComboSelection[priceGroup];
+        
+        if (selected && itemName === selected.name) {
+          btn.classList.add('selected'); 
+          btn.classList.remove('hover:bg-gray-100');
+        } else {
+          btn.classList.remove('selected');
+          if (!btn.disabled) { // [Req 4] 沒被禁用的才能 hover
+             btn.classList.add('hover:bg-gray-100');
+          }
+        }
+      });
+      
+      // 2. 檢查是否可啟用「加入套餐」按鈕
+      const allSelected = eComboSelection[15] && eComboSelection[20] && eComboSelection[25];
+      confirmEComboBtn.disabled = !allSelected;
+    }
+    
+    /**
+     * 19. 確認 E餐 選擇並加入購物車
+     * [v6.4] 修正庫存檢查
+     */
+    function confirmECombo() {
+      const allSelected = eComboSelection[15] && eComboSelection[20] && eComboSelection[25];
+      if (!allSelected || !eComboBaseItem) return;
+
+      const sel15 = eComboSelection[15];
+      const sel20 = eComboSelection[20];
+      const sel25 = eComboSelection[25];
+      
+      // [v6.4] 取得目前購物車佔用量
+      const cartCounts = getCartItemCounts();
+
+      // [v6.4] 最後一次庫存檢查 (使用 "有效庫存")
+      const components = [sel15, sel20, sel25];
+      for (const component of components) {
+        
+        const latestMenuItem = menu.find(m => m.name === component.name);
+        if (!latestMenuItem) continue; // 應該不會發生
+
+        const originalStock = latestMenuItem.stock;
+        const inCart = cartCounts[component.name] || 0;
+        const effectiveStock = originalStock - inCart;
+
+        if (effectiveStock <= 0) {
+          showError(`"${component.name}" 已售完 (庫存: ${originalStock}, 購物車: ${inCart})，請重新選擇。`);
+          
+          // [v6.4] 刷新 E餐 選單 (使用最新的 cartCounts)
+          const simpleItems = menu.filter(m => m.category !== '套餐');
+          renderComboGroup(eCombo15Container, simpleItems.filter(m => m.price === 15), 15, cartCounts);
+          renderComboGroup(eCombo20Container, simpleItems.filter(m => m.price === 20), 20, cartCounts);
+          renderComboGroup(eCombo25Container, simpleItems.filter(m => m.price === 25), 25, cartCounts);
+          eComboSelection = { 15: null, 20: null, 25: null }; // 重設
+          updateEComboModalUI(); // 更新按鈕
+          return;
+        }
+      }
+
+      // 組合套餐名稱
+      const comboName = `${eComboBaseItem.name} (${sel15.name} + ${sel20.name} + ${sel25.name})`;
+
+      // [v4] 建立套餐物件 (包含 type 和 components)
+      const comboItem = {
+        name: comboName,
+        price: eComboBaseItem.price,
+        category: eComboBaseItem.category,
+        type: 'combo', // [v4] 標記為彈性套餐 (E餐)
+        components: components // [v4] 儲存 "零件" 物件
+      };
+      
+      addCustomItemToCart(comboItem);
+      
+      eComboModal.classList.add('hidden'); // 關閉視窗
+    }
+
+
+    // --- 輔助函式 ---
+    
+    /**
+     * [v6.4] 新增：計算購物車中所有 "基礎品項" 的總數
+     * @returns {Object} e.g., {"蘿蔔": 2, "海帶": 1, "玉米": 1}
+     */
+    function getCartItemCounts() {
+      const counts = {};
+      
+      for (const item of cart) {
+        if (item.type === 'simple') {
+          // 基礎品項 (e.g., 海帶)
+          counts[item.name] = (counts[item.name] || 0) + item.quantity;
+          
+        } else if (item.type === 'fixed_combo') {
+          // 固定套餐 (e.g., A餐) 或 G餐
+          
+          // [v6.20] G餐修復：G餐沒有 components，跳過
+          if (item.name.includes("G餐-內用吃到飽")) {
+            continue;
+          }
+          
+          // 找到它在 menu 中的 "配方"
+          const menuItem = menu.find(m => m.name === item.name);
+          if (menuItem && menuItem.components) {
+            menuItem.components.forEach(partName => {
+              counts[partName] = (counts[partName] || 0) + item.quantity;
+            });
+          }
+          
+        } else if (item.type === 'combo') {
+          // 彈性套餐 (e.g., E餐(海帶+蘿蔔+...))
+          // 讀取它 "自己" 的 components
+          if (item.components) {
+            item.components.forEach(component => {
+              counts[component.name] = (counts[component.name] || 0) + item.quantity;
+            });
+          }
+        }
+      }
+      return counts;
+    }
+    
+    /**
+     * [v6.4] 新增：計算一個品項的 "有效庫存"
+     * @param {Object} item - 來自 menu 的品項
+     * @param {Object} cartCounts - getCartItemCounts() 的結果
+     * @returns {number}
+     */
+    function getEffectiveStock(item, cartCounts) {
+      
+      // [v6.20] G餐修復：G餐 (吃到飽) 永遠有庫存
+      if (item.name.includes("G餐-內用吃到飽")) {
+        return 999;
+      }
+
+      const originalStock = item.stock;
+      let effectiveStock = 0;
+
+      if (item.category !== '套餐') {
+        // 基礎品項 (海帶)
+        const inCart = cartCounts[item.name] || 0;
+        effectiveStock = originalStock - inCart;
+      } else {
+        // 套餐 (A餐 或 E餐)
+        // [v6.4] 套餐的 "有效庫存" 來自其 "零件" 的有效庫存
+        const components = item.components; // ["蘿蔔", "油豆腐"] 或 ["15", "20", "25"]
+        
+        if (!components) return 0; // 沒配方
+
+        if (components[0] === '15') {
+          // --- E餐 ---
+          const simpleItems = menu.filter(m => m.category !== '套餐');
+          
+          const total15 = simpleItems
+            .filter(m => m.price === 15)
+            .reduce((sum, m) => sum + (m.stock - (cartCounts[m.name] || 0)), 0);
+            
+          const total20 = simpleItems
+            .filter(m => m.price === 20)
+            .reduce((sum, m) => sum + (m.stock - (cartCounts[m.name] || 0)), 0);
+            
+          const total25 = simpleItems
+            .filter(m => m.price === 25)
+            .reduce((sum, m) => sum + (m.stock - (cartCounts[m.name] || 0)), 0);
+          
+          effectiveStock = Math.min(total15, total20, total25);
+
+        } else {
+          // --- A餐 (固定套餐) ---
+          const componentEffectiveStocks = components.map(partName => {
+            const partItem = menu.find(m => m.name === partName);
+            if (!partItem) return 0;
+            const partInCart = cartCounts[partName] || 0;
+            return partItem.stock - partInCart;
+          });
+          effectiveStock = Math.min(...componentEffectiveStocks);
+        }
+      }
+      
+      return Math.max(0, effectiveStock); // 確保不為負數
+    }
+
+
+    /**
+     * 顯示載入中
+     */
+    function showLoading(message = '載入中...') {
+      loadingMessage.textContent = message;
+      loadingOverlay.classList.remove('hidden');
+    }
+
+    /**
+     * 隱藏載入中
+     */
+    function hideLoading() {
+      loadingOverlay.classList.add('hidden');
+    }
+
+    /**
+     * 顯示錯誤
+     */
+    function showError(message) {
+      errorMessageEl.textContent = message;
+      errorModal.classList.remove('hidden');
+    }
+
+    /**
+     * G.A.S. 執行失敗
+     */
+    function onFailure(error) {
+      hideLoading();
+      let msg = error.message || '發生未知錯誤。';
+      if (typeof error === 'object' && error.message) {
+        msg = error.message;
+      } else if (typeof error === 'string') {
+        msg = error;
+      }
+      console.error('GAS 執行失敗:', error);
+      showError(`無法完成操作：${msg}`);
+    }
+
+
+    // --- 讓 JS 能在 HTML 模板中呼叫 (G.A.S. 不需要) ---
+    // 由於 onclick 是直接寫在 HTML 字串中，全域函式是可見的
+    window.updateCartItemQuantity = updateCartItemQuantity;
+    window.removeCartItem = removeCartItem;
+
+  </script>
+</body>
+</html>
+
