@@ -290,12 +290,18 @@
   // 給 Demo 入口頁用
   window.MealDemo = { reset() { localStorage.removeItem(STORE_KEY); }, STORE_KEY };
 
-  // --- Demo：叫號螢幕不跳「點擊進入全螢幕」，載入後直接開始顯示 ---
-  // 原本的提示是為了取得使用者操作以開啟全螢幕與語音；這裡代為觸發一次，
-  // 全螢幕會被瀏覽器拒絕（原程式已處理），語音則在使用者第一次點擊畫面後才會出聲。
+  // --- Demo：叫號螢幕不跳「點擊進入全螢幕」，也不進入全螢幕，載入後直接開始顯示 ---
+  // 原本點擊提示會做三件事：開全螢幕、預熱語音、開始抓訂單。Demo 只做後兩件：
+  // 隱藏提示、直接開始抓訂單；語音則等使用者第一次點擊畫面時預熱（瀏覽器規定）。
   window.addEventListener('load', () => {
     const prompt = document.getElementById('fullscreen-prompt');
-    if (prompt && prompt.style.display !== 'none') prompt.click();
+    if (!prompt || typeof window.fetchOcsOrders !== 'function') return;
+    prompt.style.display = 'none';
+    window.fetchOcsOrders();
+    if (typeof window.startTimer === 'function') window.startTimer();
+    document.addEventListener('pointerdown', () => {
+      if (typeof window.speakMessage === 'function') window.speakMessage(' ');
+    }, { once: true });
   });
 
   // --- Demo 標示（嵌在 iframe 時隱藏） ---
