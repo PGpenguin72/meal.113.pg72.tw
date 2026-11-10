@@ -125,11 +125,11 @@
       let hasDrinks = false;
 
       for (const item of orderData.items) {
-        if (!isGPillOrder) {
-          if (item.category === '關東煮' || item.category === '套餐') hasOdenOrCombo = true;
-          else if (item.category === '飲料') hasDrinks = true;
-        }
+        // [Demo 修正] 原本的 Code.js 只要訂單含 G 餐，整張訂單都不送廚房（見 docs/known-issues.md #5）。
+        // Demo 改成只跳過 G 餐本身，同一張單的其他品項照常送廚房。
         if (item.name === G_PILL_COMBO_NAME) continue;
+        if (item.category === '關東煮' || item.category === '套餐') hasOdenOrCombo = true;
+        else if (item.category === '飲料') hasDrinks = true;
 
         if (item.type === 'simple') {
           stockUpdates[item.name] = (stockUpdates[item.name] || 0) + item.quantity;
@@ -158,9 +158,11 @@
       const flags = { b7: '', b8: '', b9: '', b10: '', b11: '', b12: '', b13: '' };
       if (hasOdenOrCombo) flags.b7 = 1;
       if (hasDrinks) flags.b8 = 1;
-      if (isGPillOrder) flags.b13 = 1;
+      const needsKitchen = hasOdenOrCombo || hasDrinks;
+      // 只有 G 餐的訂單：照原本行為直接結案
+      if (isGPillOrder && !needsKitchen) flags.b13 = 1;
 
-      const status = isGPillOrder ? 'completed' : (hasOdenOrCombo || hasDrinks) ? 'pending' : 'ready_for_pickup';
+      const status = needsKitchen ? 'pending' : isGPillOrder ? 'completed' : 'ready_for_pickup';
 
       db.orders.push({
         orderName: 'Order#' + db.lastOrderNum,
@@ -184,9 +186,9 @@
     for (const o of db.orders) {
       if (o.status !== 'pending' && o.status !== 'preparing') continue;
       const orderData = JSON.parse(o.json);
-      if (orderData.items.some(item => item.name === G_PILL_COMBO_NAME)) continue;
-      const filtered = orderData.items.filter(item =>
-        type === 'oden' ? (item.category === '關東煮' || item.category === '套餐') : item.category === '飲料');
+      // [Demo 修正] 只排除 G 餐這一項，不再整張訂單跳過
+      const filtered = orderData.items.filter(item => item.name !== G_PILL_COMBO_NAME && (
+        type === 'oden' ? (item.category === '關東煮' || item.category === '套餐') : item.category === '飲料'));
       if (filtered.length === 0) continue;
       out.push({
         orderName: o.orderName,
@@ -287,6 +289,14 @@
 
   // 給 Demo 入口頁用
   window.MealDemo = { reset() { localStorage.removeItem(STORE_KEY); }, STORE_KEY };
+
+  // --- Demo：叫號螢幕不跳「點擊進入全螢幕」，載入後直接開始顯示 ---
+  // 原本的提示是為了取得使用者操作以開啟全螢幕與語音；這裡代為觸發一次，
+  // 全螢幕會被瀏覽器拒絕（原程式已處理），語音則在使用者第一次點擊畫面後才會出聲。
+  window.addEventListener('load', () => {
+    const prompt = document.getElementById('fullscreen-prompt');
+    if (prompt && prompt.style.display !== 'none') prompt.click();
+  });
 
   // --- Demo 標示（嵌在 iframe 時隱藏） ---
   const noBadge = document.currentScript && document.currentScript.hasAttribute('data-no-badge');

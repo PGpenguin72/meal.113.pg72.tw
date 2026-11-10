@@ -70,7 +70,7 @@
   <ol>
     <li>在 <b>收銀台</b> 點餐，按「結帳」→「確認送出訂單」。</li>
     <li>在 <b>廚房螢幕</b> 按「接單」，再按「完成」。關東煮和飲料兩台都要按。</li>
-    <li><b>叫號螢幕</b> 出現號碼。先點一下叫號螢幕，才會有語音。</li>
+    <li><b>叫號螢幕</b> 出現號碼。想聽語音叫號，先在叫號螢幕上點一下。</li>
     <li>在 <b>取餐櫃台</b> 按「取餐完成」。</li>
   </ol>
 </div>
@@ -106,7 +106,8 @@
 
 <footer>
   <div class="wrap">
-    <p>5 個畫面是當天的原始檔案，沒有修改；唯一的差別是後端換成在瀏覽器裡執行的模擬版（<code>mock-gas.js</code>，由 Claude 依照原本的 <code>Code.js</code> 邏輯撰寫）。</p>
+    <p>5 個畫面是當天的原始檔案，沒有修改；後端換成在瀏覽器裡執行的模擬版（<code>mock-gas.js</code>，由 Claude 依照原本的 <code>Code.js</code> 邏輯撰寫）。</p>
+    <p>和當天唯一不同的地方：當天只要訂單裡有 G 餐（吃到飽），整張訂單都不會送到廚房；試玩版改成只跳過 G 餐，同一張單的其他品項照常送廚房。</p>
     <p>原始碼：<a href="https://github.com/PGpenguin72/meal.113.pg72.tw">github.com/PGpenguin72/meal.113.pg72.tw</a></p>
   </div>
 </footer>
