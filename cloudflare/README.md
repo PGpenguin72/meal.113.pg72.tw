@@ -1,5 +1,7 @@
 # cloudflare/ — v7.x 外部 API 版（未完成，未上線）
 
+> ✍️ 本文件由 Claude 撰寫（2026-11），內容依據原始程式碼與試算表整理；系統本身由 PG企鵝 設計、Gemini 產生程式碼。
+
 園遊會前一晚（2025-11-01 00:42–01:24）嘗試把頁面搬到 Cloudflare Pages 的版本，原本部署在 `113.arcantstudio.com`。完整歷史在本倉庫的 `legacy` branch。
 
 | 檔案 | 對應 v6.22 | 串接方式 |

@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <script src="mock-gas.js"></script><!-- demo: 以瀏覽器模擬 google.script.run -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- [v6.17] 系統命名 -->
+  <title>Pickup (取餐) | 壹參壹參 小食部</title>
+  <style>
+    body {
+      font-family: 'Inter', 'Noto Sans TC', sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .loader {
+      border-top-color: #3498db;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body class="bg-gray-800 text-white min-h-screen">
+
+  <!-- 頂部標題欄 -->
+  <header class="bg-gray-900 shadow-md p-4 flex justify-between items-center sticky top-0 z-10">
+    <!-- [v6.17] 系統命名 -->
+    <h1 class="text-3xl font-bold">Pickup (取餐) | 壹參壹參</h1>
+    <div class="flex items-center space-x-2">
+      <span class="text-lg">自動刷新倒數：</span>
+      <span id="countdown-timer" class="text-lg font-mono font-bold w-6 text-right">3</span>
+      <span class="text-lg">秒</span>
+    </div>
+  </header>
+
+  <!-- 訂單區塊 -->
+  <main id="orders-grid" class="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+    <div id="loading-kds" class="col-span-full h-64 flex flex-col justify-center items-center text-gray-400">
+      <div class="loader ease-linear rounded-full border-8 border-t-8 border-gray-500 h-24 w-24 mb-4"></div>
+      <span class="text-2xl font-semibold">載入「待取餐」訂單中...</span>
+    </div>
+  </main>
+  
+  <!-- [v6.17] 版權 -->
+  <footer class="text-center text-sm text-gray-500 p-4">
+    © ArcantStudio | 極區工作室 2025 製作
+  </footer>
+  
+  <!-- 錯誤視窗 -->
+  <div id="error-modal" class="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 hidden">
+    <div class="bg-gray-800 border border-red-500 p-8 rounded-lg shadow-2xl w-full max-w-md text-center">
+       <div class="w-24 h-24 bg-red-900 rounded-full p-4 flex items-center justify-center mx-auto mb-6">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-16 h-16 text-red-400">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+        </svg>
+      </div>
+      <h3 class="text-3xl font-bold mb-4 text-white">連線錯誤</h3>
+      <p id="error-message" class="text-lg text-gray-300 mb-8">
+        無法完成操作。
+      </p>
+      <button id="close-error-btn" class="w-full bg-gray-600 text-white font-semibold py-3 rounded-lg hover:bg-gray-700 transition text-xl">
+        關閉
+      </button>
+    </div>
+  </div>
+
+
+  <script>
+    const REFRESH_INTERVAL_SECONDS = 3; // Pickup 系統刷新頻率
+    
+    let countdownTimer = REFRESH_INTERVAL_SECONDS;
+    let refreshInterval;
+
+    const ordersGrid = document.getElementById('orders-grid');
+    const loadingKdsEl = document.getElementById('loading-kds');
+    const countdownTimerEl = document.getElementById('countdown-timer');
+    const errorModal = document.getElementById('error-modal');
+    const errorMessageEl = document.getElementById('error-message');
+    const closeErrorBtn = document.getElementById('close-error-btn');
+
+    document.addEventListener('DOMContentLoaded', () => {
+      fetchOrders(); 
+      startTimer(); 
+      
+      closeErrorBtn.addEventListener('click', () => {
+        errorModal.classList.add('hidden');
+        fetchOrders(); 
+        startTimer(); 
+      });
+    });
+
+    /**
+     * 1. 開始自動刷新計時器
+     */
+    function startTimer() {
+      if (refreshInterval) clearInterval(refreshInterval); 
+      
+      countdownTimer = REFRESH_INTERVAL_SECONDS;
+      countdownTimerEl.textContent = countdownTimer;
+      
+      refreshInterval = setInterval(() => {
+        countdownTimer--;
+        countdownTimerEl.textContent = countdownTimer;
+        if (countdownTimer <= 0) {
+          fetchOrders();
+          countdownTimer = REFRESH_INTERVAL_SECONDS; 
+        }
+      }, 1000);
+    }
+    
+    /**
+     * (輔助) 顯示 "沒有訂單"
+     */
+    function showNoOrdersMessage() {
+       ordersGrid.innerHTML = `
+          <div class="col-span-full h-64 flex flex-col justify-center items-center text-gray-500">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-24 h-24 mb-4">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+            <span class="text-3xl font-semibold">目前沒有「待取餐」的訂單！</span>
+          </div>
+        `;
+    }
+
+    /**
+     * 2. [API 呼叫] 獲取訂單
+     */
+    function fetchOrders() {
+      countdownTimer = REFRESH_INTERVAL_SECONDS; 
+      loadingKdsEl.classList.remove('hidden'); 
+      
+      google.script.run
+        .withSuccessHandler(onOrdersSuccess)
+        .withFailureHandler(onOrdersFailure)
+        .getOcsOrders(); // [v6.15] 共用 OCS 的 API
+    }
+    
+    /**
+     * 3. 獲取訂單成功，渲染畫面
+     */
+    function onOrdersSuccess(data) {
+      loadingKdsEl.classList.add('hidden');
+      ordersGrid.innerHTML = ''; 
+      
+      // [v6.15] Pickup 系統只看 "readyOrders"
+      const orders = data.readyOrders; 
+
+      if (orders.length === 0) {
+        showNoOrdersMessage();
+        return;
+      }
+      
+      // [v6.17] KDS 排序由後端 (FIFO) 決定，OCS 也是
+      orders.forEach(order => {
+        const orderCard = createOrderCard(order);
+        ordersGrid.appendChild(orderCard);
+      });
+    }
+
+    /**
+     * 4. 建立訂單卡片 (DOM)
+     */
+    function createOrderCard(order) {
+      const card = document.createElement('div');
+      card.id = `order-${order.orderName}`;
+      card.className = `order-card border-2 rounded-lg shadow-lg flex flex-col`;
+      
+      // --- 1. 標頭 (Header) ---
+      const header = document.createElement('div');
+      header.id = `header-${order.orderName}`;
+      header.className = `p-4 border-b`;
+      
+      const title = document.createElement('h2');
+      title.className = `text-3xl font-bold`;
+      title.textContent = `# ${order.pickupNumber}`;
+      
+      const subTitle = document.createElement('p');
+      subTitle.className = 'text-sm text-gray-400';
+      subTitle.textContent = order.orderName;
+      
+      header.appendChild(title);
+      header.appendChild(subTitle);
+      
+      // --- 2. 按鈕 (Footer) ---
+      const footer = document.createElement('div');
+      footer.className = 'p-4 mt-auto border-t';
+      
+      const button = document.createElement('button');
+      button.className = 'w-full font-bold text-2xl py-4 rounded-lg transition duration-150 shadow-lg';
+      
+      // --- 3. [v6.15] 設定卡片顏色和按鈕 ---
+      // (Pickup 系統全部都是 "待取餐" 狀態)
+      card.classList.add('bg-green-900', 'border-green-700');
+      header.classList.add('border-green-700');
+      title.classList.add('text-green-300');
+      footer.classList.add('border-green-700');
+      
+      // [v6.15] (Q4) 使用深藍色按鈕
+      button.classList.add('bg-blue-700', 'hover:bg-blue-800', 'text-white');
+      button.textContent = '取餐完成 (Completed)';
+      button.onclick = () => markOrderPickedUp(button, order.orderName);
+      
+      footer.appendChild(button);
+      
+      card.appendChild(header);
+      card.appendChild(footer);
+      
+      return card;
+    }
+
+    
+    /**
+     * 5. [API 呼叫] [v6.15] (Q4) 標記為 "已取餐"
+     */
+    function markOrderPickedUp(buttonEl, orderName) {
+      if (refreshInterval) clearInterval(refreshInterval);
+      
+      buttonEl.disabled = true;
+      buttonEl.textContent = '更新中...';
+      buttonEl.classList.remove('bg-blue-700', 'hover:bg-blue-800');
+      buttonEl.classList.add('bg-gray-500', 'cursor-not-allowed');
+
+      google.script.run
+        .withSuccessHandler(response => onUpdateSuccess(response, buttonEl, orderName))
+        .withFailureHandler(onOrdersFailure) 
+        .markOrderPickedUp(orderName); // [v6.15] 新 API
+    }
+    
+    /**
+     * 6. [v6.15] 更新狀態成功 (後端回傳)
+     */
+    function onUpdateSuccess(response, buttonEl, orderName) {
+      if (!response || !response.success) {
+        onOrdersFailure(response.message || "後端更新失敗");
+        return;
+      }
+      
+      // --- (Q4) 立即消失 ---
+      const card = document.getElementById(`order-${orderName}`);
+      if (card) {
+        card.remove();
+      }
+      if (ordersGrid.childElementCount === 0) {
+        showNoOrdersMessage();
+      }
+      
+      startTimer();
+    }
+
+    /**
+     * 7. 處理所有失敗
+     */
+    function onOrdersFailure(error) {
+      if (refreshInterval) clearInterval(refreshInterval); 
+      
+      let msg = error.message || (typeof error === 'string' ? error : '發生未知錯誤。');
+      
+      console.error('GAS 執行失敗:', error);
+      errorMessageEl.textContent = `無法完成操作：${msg}`;
+      errorModal.classList.remove('hidden');
+      
+      // 發生錯誤後，強制重載，避免狀態不一致
+      fetchOrders();
+      startTimer();
+    }
+
+  </script>
+</body>
+</html>
+

@@ -1,5 +1,7 @@
 # API 規格
 
+> ✍️ 本文件由 Claude 撰寫（2026-11），內容依據原始程式碼與試算表整理；系統本身由 PG企鵝 設計、Gemini 產生程式碼。
+
 ## v6.22：`google.script.run`（當天使用）
 
 頁面由 Apps Script 提供，前端以 `google.script.run.withSuccessHandler(...).withFailureHandler(...).<函式>(...)` 呼叫 `Code.js` 中的公開函式。

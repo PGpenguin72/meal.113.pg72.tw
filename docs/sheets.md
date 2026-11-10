@@ -1,5 +1,7 @@
 # 試算表結構（收銀資料庫）
 
+> ✍️ 本文件由 Claude 撰寫（2026-11），內容依據原始程式碼與試算表整理；系統本身由 PG企鵝 設計、Gemini 產生程式碼。
+
 > 📎 當天實際使用的試算表（唯讀）：<https://docs.google.com/spreadsheets/d/10L4bqqWCrQ6Pg7V77s9D2CnnGREZXjdDYWMLO1psx5E/edit?usp=sharing>　人員信箱已替換為 `hi@pg72.tw`。
 
 整份系統只用一份 Google 試算表當資料庫，Apps Script 綁定在這份試算表上（`SpreadsheetApp.getActiveSpreadsheet()`），所以程式裡沒有寫死試算表 ID。

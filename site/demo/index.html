@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>線上試玩｜園遊會點餐系統</title>
+<meta name="description" content="在瀏覽器裡試玩園遊會點餐系統：收銀、廚房、叫號、取餐同時運作。">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍢</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="mock-gas.js" data-no-badge></script>
+<style>
+  :root { --bg:#fbf8f3; --surface:#fff; --surface-2:#f4efe6; --text:#1f1a14; --muted:#6f655a; --line:#e6ddcf; --accent:#e0562b; --bezel:#1c1c1e; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#14120f; --surface:#1d1a16; --surface-2:#26221c; --text:#f3ede4; --muted:#a89d8f; --line:#362f27; --accent:#ff7a4d; --bezel:#000; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:"Noto Sans TC",-apple-system,"PingFang TC",sans-serif; line-height:1.7; }
+  a { color: inherit; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 20px; }
+  header { border-bottom:1px solid var(--line); }
+  header .wrap { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; justify-content:space-between; padding-top:14px; padding-bottom:14px; }
+  .brand { font-weight:900; text-decoration:none; }
+  .actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .btn { font:inherit; font-size:14px; font-weight:700; padding:8px 14px; border-radius:10px; border:1px solid var(--line); background:var(--surface); color:var(--text); cursor:pointer; text-decoration:none; }
+
+  .intro { padding-top:24px; padding-bottom:8px; }
+  .intro h1 { font-size:clamp(24px,4vw,32px); margin:0 0 8px; font-weight:900; }
+  .intro p { margin:0 0 6px; color:var(--muted); max-width:760px; }
+  .intro ol { margin:12px 0 0; padding-left:22px; max-width:760px; }
+
+  .row { display:grid; gap:24px; align-items:end; padding-top:24px; }
+  .row.top { grid-template-columns: 1.45fr 1fr; }
+  .row.phones { grid-template-columns: repeat(3, minmax(0, 300px)); justify-content:center; padding-bottom:16px; }
+  @media (max-width: 900px) { .row.top { grid-template-columns: 1fr; } }
+  @media (max-width: 760px) { .row.phones { grid-template-columns: 1fr; justify-items:center; } .row.phones .device { width:min(300px, 100%); } }
+
+  .device { display:flex; flex-direction:column; gap:8px; min-width:0; }
+  .label { display:flex; justify-content:space-between; align-items:baseline; gap:8px; font-size:14px; }
+  .label b { font-size:15px; }
+  .label span { color:var(--muted); font-size:13px; }
+  .label a { font-size:13px; white-space:nowrap; }
+  /* 裝置外框：內層以實際螢幕解析度渲染，再等比縮小 */
+  .shell { background:var(--bezel); padding:10px; border-radius:22px; box-shadow:0 10px 30px rgba(0,0,0,.18); }
+  .shell.laptop { border-radius:14px 14px 4px 4px; padding:8px 8px 10px; }
+  .laptop-base { height:12px; margin:0 -4%; background:linear-gradient(#c9c9cc,#9a9aa0); border-radius:0 0 12px 12px; }
+  .shell.phone { border-radius:34px; padding:10px; }
+  .screen { position:relative; overflow:hidden; border-radius:12px; background:#111827; }
+  .shell.phone .screen { border-radius:24px; }
+  .shell.laptop .screen { border-radius:4px; }
+  .screen iframe { position:absolute; top:0; left:0; border:0; transform-origin:0 0; }
+  footer { border-top:1px solid var(--line); padding:20px 0 36px; margin-top:16px; color:var(--muted); font-size:13px; }
+  footer p { margin:0 0 4px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <a class="brand" href="../">🍢 園遊會點餐系統</a>
+    <div class="actions">
+      <button type="button" class="btn" id="reset">清空所有訂單</button>
+      <a class="btn" href="../">← 回介紹頁</a>
+    </div>
+  </div>
+</header>
+
+<div class="wrap intro">
+  <h1>線上試玩</h1>
+  <p>下面是當天使用的 5 個畫面，照當天的裝置比例縮小顯示。點餐後，訂單會依序出現在其他畫面上。</p>
+  <p>資料只存在你的瀏覽器，不會影響真實的試算表。</p>
+  <ol>
+    <li>在 <b>收銀台</b> 點餐，按「結帳」→「確認送出訂單」。</li>
+    <li>在 <b>廚房螢幕</b> 按「接單」，再按「完成」。關東煮和飲料兩台都要按。</li>
+    <li><b>叫號螢幕</b> 出現號碼。先點一下叫號螢幕，才會有語音。</li>
+    <li>在 <b>取餐櫃台</b> 按「取餐完成」。</li>
+  </ol>
+</div>
+
+<div class="wrap">
+  <div class="row top">
+    <div class="device">
+      <div class="label"><b>收銀台</b><span>iPad Air 橫放</span><a href="pos.html" target="_blank" rel="noopener">原尺寸開啟 ↗</a></div>
+      <div class="shell"><div class="screen" data-w="1180" data-h="820"><iframe src="pos.html" title="收銀台"></iframe></div></div>
+    </div>
+    <div class="device">
+      <div class="label"><b>叫號螢幕</b><span>MacBook Pro</span><a href="ocs.html" target="_blank" rel="noopener">原尺寸開啟 ↗</a></div>
+      <div class="shell laptop"><div class="screen" data-w="1512" data-h="945"><iframe src="ocs.html" title="叫號螢幕" allow="fullscreen; autoplay"></iframe></div></div>
+      <div class="laptop-base"></div>
+    </div>
+  </div>
+
+  <div class="row phones">
+    <div class="device">
+      <div class="label"><b>廚房：關東煮</b><span>手機</span><a href="kds.html" target="_blank" rel="noopener">原尺寸 ↗</a></div>
+      <div class="shell phone"><div class="screen" data-w="390" data-h="844"><iframe src="kds.html" title="廚房螢幕：關東煮"></iframe></div></div>
+    </div>
+    <div class="device">
+      <div class="label"><b>廚房：飲料</b><span>手機</span><a href="kds-drinks.html" target="_blank" rel="noopener">原尺寸 ↗</a></div>
+      <div class="shell phone"><div class="screen" data-w="390" data-h="844"><iframe src="kds-drinks.html" title="廚房螢幕：飲料"></iframe></div></div>
+    </div>
+    <div class="device">
+      <div class="label"><b>取餐櫃台</b><span>手機</span><a href="pickup.html" target="_blank" rel="noopener">原尺寸 ↗</a></div>
+      <div class="shell phone"><div class="screen" data-w="390" data-h="844"><iframe src="pickup.html" title="取餐櫃台"></iframe></div></div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap">
+    <p>5 個畫面是當天的原始檔案，沒有修改；唯一的差別是後端換成在瀏覽器裡執行的模擬版（<code>mock-gas.js</code>，由 Claude 依照原本的 <code>Code.js</code> 邏輯撰寫）。</p>
+    <p>原始碼：<a href="https://github.com/PGpenguin72/meal.113.pg72.tw">github.com/PGpenguin72/meal.113.pg72.tw</a></p>
+  </div>
+</footer>
+
+<script>
+  // 每個畫面都以「裝置實際的 CSS 解析度」渲染，再整體等比縮小，比例不變
+  function fit() {
+    document.querySelectorAll('.screen').forEach(box => {
+      const w = Number(box.dataset.w), h = Number(box.dataset.h);
+      const scale = box.clientWidth / w;
+      box.style.height = (h * scale) + 'px';
+      const ifr = box.querySelector('iframe');
+      ifr.style.width = w + 'px';
+      ifr.style.height = h + 'px';
+      ifr.style.transform = `scale(${scale})`;
+    });
+  }
+  window.addEventListener('resize', fit);
+  fit();
+
+  document.getElementById('reset').addEventListener('click', () => {
+    window.MealDemo.reset();
+    document.querySelectorAll('iframe').forEach(f => { f.src = f.src; });
+  });
+</script>
+</body>
+</html>

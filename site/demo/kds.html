@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <script src="mock-gas.js"></script><!-- demo: 以瀏覽器模擬 google.script.run -->
+  <meta charset="UTF-8">
+  <!-- 
+    [v6.29] (終極 Viewport 修復) 
+    你 100% 說對了！
+    標準的 <meta name="viewport"...> 在 Google Apps Script 的 iframe 中是無效的！
+    這 100% 是我的錯，這就是「版面過小」的真正原因。
+    
+    我們必須使用 GAS 專用的 "google-apps-script-viewport" 標籤，
+    這才會 100% 強制手機版網頁放大！
+  -->
+  <meta name="google-apps-script-viewport" content="width=device-width,initial-scale=1">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- [v6.17] 系統命名 -->
+  <title>KDS (關東煮) | 壹參壹參 小食部</title>
+  <style>
+    body {
+      font-family: 'Inter', 'Noto Sans TC', sans-serif;
+      /* 禁止選取文字 */
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    /* 載入動畫 */
+    .loader {
+      border-top-color: #3498db;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<!-- 
+  [v6.28] (終極版面修復 - 100% 參考 temp_comparison.html)
+  - 舊 (v6.27): ... flex flex-col min-h-screen (這是"黏性 Footer"佈局，是錯的)
+  - 新 (v6.28): ... min-h-screen (移除 flex flex-col，讓 footer 自然跟隨內容)
+-->
+<body class="bg-gray-900 text-white min-h-screen">
+
+  <!-- 
+    頂部標題欄 (固定)
+    [v6.24] 新增 sticky top-0 (採用 temp_comparison.html 的邏輯)
+  -->
+  <header class="bg-gray-800 shadow-md p-4 flex justify-between items-center sticky top-0 z-10">
+    <!-- 
+      [v6.30] (終極字體放大)
+      - 舊 (v6.29): text-3xl
+      - 新 (v6.30): text-2xl sm:text-3xl (手機版縮小一點，讓標題欄不要太擠)
+    -->
+    <h1 class="text-2xl sm:text-3xl font-bold">KDS (關東煮/套餐)</h1>
+    <div class="flex items-center space-x-2">
+      <!-- 
+        [v6.30] (終極字體放大)
+        - 舊 (v6.29): text-lg
+        - 新 (v6.30): text-base sm:text-lg (手機版縮小一點)
+      -->
+      <span class="text-base sm:text-lg">自動刷新：</span>
+      <span id="countdown-timer" class="text-base sm:text-lg font-mono font-bold w-6 text-right">5</span>
+    </div>
+  </header>
+
+  <!-- 
+    [v6.26] (修復卡片比例 Bug)
+    - 舊 (v6.25): ... flex-1 (這會強制 <main> 填滿螢幕，導致卡片被拉長)
+    - 新 (v6.26): (移除 flex-1) (讓 <main> 高度由卡片內容決定，100% 參考 temp_comparison)
+  
+    [v6.25] (再次修復手機版 "小不隆冬" Bug)
+    - 舊 (v6.24): grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 (md 太早觸發了)
+    - 新 (v6.25): grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 (延後到 lg 才觸發多欄)
+  -->
+  <main id="orders-grid" class="p-4 grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">
+    
+    <!-- 訂單卡片將由 JS 動態產生 -->
+    <div id="loading-kds" class="col-span-full h-64 flex flex-col justify-center items-center text-gray-400">
+      <div class="loader ease-linear rounded-full border-8 border-t-8 border-gray-500 h-24 w-24 mb-4"></div>
+      <span class="text-2xl font-semibold">載入訂單中...</span>
+    </div>
+  </main>
+  
+  <!-- 
+    [v6.28] (終極版面修復 - 100% 參考 temp_comparison.html)
+    - 舊 (v6.27): ... mt-auto (這是"黏性 Footer"，是錯的)
+    - 新 (v6.28): ... mt-16 (移除 mt-auto，改成固定 margin-top，讓 footer 自然跟隨)
+  -->
+  <footer class="p-4 text-center text-gray-500 text-sm mt-16">
+    ArcantStudio|極區工作室 2025製作
+  </footer>
+
+  <!-- 錯誤視窗 -->
+  <div id="error-modal" class="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center z-50 hidden">
+    <div class="bg-gray-800 border border-red-500 p-8 rounded-lg shadow-2xl w-full max-w-md text-center">
+       <div class="w-24 h-24 bg-red-900 rounded-full p-4 flex items-center justify-center mx-auto mb-6">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-16 h-16 text-red-400">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+        </svg>
+      </div>
+      <h3 class="text-3xl font-bold mb-4 text-white">連線錯誤</h3>
+      <p id="error-message" class="text-lg text-gray-300 mb-8">
+        無法完成操作。
+      </p>
+      <button id="close-error-btn" class="w-full bg-gray-600 text-white font-semibold py-3 rounded-lg hover:bg-gray-700 transition text-xl">
+        關閉
+      </button>
+    </div>
+  </div>
+
+
+  <script>
+    // [v6.14] KDS 類型
+    const KDS_TYPE = 'oden';
+    
+    // [v6.14] 刷新頻率
+    const REFRESH_INTERVAL_SECONDS = 5;
+    let countdownTimer = REFRESH_INTERVAL_SECONDS;
+    let refreshInterval;
+    
+    // [v6.14] DOM 元素
+    const ordersGrid = document.getElementById('orders-grid');
+    const loadingKdsEl = document.getElementById('loading-kds');
+    const countdownTimerEl = document.getElementById('countdown-timer');
+    const errorModal = document.getElementById('error-modal');
+    const errorMessageEl = document.getElementById('error-message');
+    const closeErrorBtn = document.getElementById('close-error-btn');
+
+    document.addEventListener('DOMContentLoaded', () => {
+      fetchOrders(); // 立即載入
+      startTimer(); // 開始計時
+      
+      closeErrorBtn.addEventListener('click', () => {
+        errorModal.classList.add('hidden');
+        fetchOrders(); // 發生錯誤後，強制重抓
+        startTimer(); 
+      });
+    });
+
+    /**
+     * 1. 開始自動刷新計時器
+     */
+    function startTimer() {
+      // 清除舊的
+      if (refreshInterval) clearInterval(refreshInterval); 
+      
+      countdownTimer = REFRESH_INTERVAL_SECONDS;
+      countdownTimerEl.textContent = countdownTimer;
+      
+      refreshInterval = setInterval(() => {
+        countdownTimer--;
+        countdownTimerEl.textContent = countdownTimer;
+        if (countdownTimer <= 0) {
+          fetchOrders();
+          countdownTimer = REFRESH_INTERVAL_SECONDS; // 重設
+        }
+      }, 1000);
+    }
+    
+    /**
+     * (輔助) 顯示 "沒有訂單"
+     */
+    function showNoOrdersMessage() {
+       ordersGrid.innerHTML = `
+          <!-- [v6.24] 移除 h-full，讓它隨 <main> 自然高度 -->
+          <div class="col-span-full flex flex-col justify-center items-center text-gray-500 py-24">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-24 h-24 mb-4">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+            <!-- [v6.30] (終極字體放大) -->
+            <span class="text-2xl sm:text-3xl font-semibold">目前沒有 關東煮/套餐 訂單！</span>
+          </div>
+        `;
+    }
+
+    /**
+     * 2. [API 呼叫] 獲取廚房訂單
+     */
+    function fetchOrders() {
+      countdownTimer = REFRESH_INTERVAL_SECONDS; // 重設計時器
+      
+      // [v6.14] 如果 "載入中" 已存在，不要再顯示
+      if (!document.getElementById('loading-kds')) {
+        // (如果 KDS 已經有訂單，我們在背景刷新就好，不要閃爍)
+        if (ordersGrid.children.length === 0) {
+           loadingKdsEl.classList.remove('hidden'); 
+        }
+      } else {
+        loadingKdsEl.classList.remove('hidden');
+      }
+      
+      google.script.run
+        .withSuccessHandler(onOrdersSuccess)
+        .withFailureHandler(onOrdersFailure)
+        .getKitchenOrders(KDS_TYPE); // [v6.14] 傳入類型
+    }
+    
+    /**
+     * 3. 獲取訂單成功，渲染畫面
+     */
+    function onOrdersSuccess(orders) {
+      loadingKdsEl.classList.add('hidden');
+      ordersGrid.innerHTML = ''; // 清空舊訂單
+
+      if (orders.length === 0) {
+        showNoOrdersMessage();
+        return;
+      }
+      
+      // [v6.17] KDS 排序 (升冪/FIFO) - 已移至後端 Code.gs (v6.18) 處理
+      
+      // 渲染訂單卡片
+      orders.forEach(order => {
+        const orderCard = createOrderCard(order);
+        ordersGrid.appendChild(orderCard);
+      });
+    }
+
+    /**
+     * 4. 建立訂單卡片 (DOM)
+     */
+    function createOrderCard(order) {
+      const isPreparing = order.status === 'preparing';
+
+      const card = document.createElement('div');
+      card.id = `order-${order.orderName}`;
+      // [v6.23] 修正卡片高度 (移除 flex-1)，讓卡片高度隨內容變化
+      card.className = `order-card border-2 rounded-lg shadow-lg flex flex-col`;
+      
+      // --- 1. 標頭 (Header) ---
+      const header = document.createElement('div');
+      header.id = `header-${order.orderName}`;
+      header.className = `p-4 border-b`;
+      
+      const title = document.createElement('h2');
+      // [v6.30] (終極字體放大) 
+      // - 舊 (v6.29): text-3xl
+      // - 新 (v6.30): text-4xl font-extrabold (100% 放大)
+      title.className = `text-4xl font-extrabold`;
+      title.textContent = `# ${order.pickupNumber}`;
+      
+      const subTitle = document.createElement('p');
+      // [v6.30] (終極字體放大) (這就是 Bug 點！)
+      // - 舊 (v6.29): text-sm (14px) (看不清)
+      // - 新 (v6.30): text-lg (18px) (100% 放大)
+      subTitle.className = 'text-lg text-gray-400';
+      subTitle.textContent = order.orderName;
+      
+      header.appendChild(title);
+      header.appendChild(subTitle);
+      
+      // --- 2. 項目列表 (Body) ---
+      const itemList = document.createElement('div');
+      // [v6.17] 移除捲動條 (overflow-y-auto max-h-96)
+      // [v6.23] 移除 flex-1 (這個是 v6.17 造成的 bug)
+      itemList.className = 'p-4 space-y-3';
+      
+      order.items.forEach(item => {
+        itemList.innerHTML += createItemHtml(item);
+      });
+
+      // --- 3. 按鈕 (Footer) ---
+      const footer = document.createElement('div');
+      footer.className = 'p-4 mt-auto border-t';
+      
+      const button = document.createElement('button');
+      // [v6.30] (終極字體放大) 
+      // - 舊 (v6.29): text-2xl
+      // - 新 (v6.30): text-2xl (這個 24px 已經夠大了)
+      button.className = 'w-full font-bold text-2xl py-4 rounded-lg transition duration-150 shadow-lg';
+      
+      // --- 4. 根據狀態設定卡片顏色和按鈕 ---
+      if (isPreparing) {
+        // --- 狀態：準備中 (橘黃色) ---
+        card.classList.add('bg-orange-900', 'border-orange-700');
+        header.classList.add('border-orange-700');
+        title.classList.add('text-orange-300');
+        footer.classList.add('border-orange-700');
+        
+        button.classList.add('bg-green-600', 'hover:bg-green-700', 'text-white');
+        button.textContent = '完成 (Ready)';
+        button.onclick = () => markOrderReady(button, order.orderName, 'ready');
+        
+      } else {
+        // --- 狀態：待處理 (藍色) ---
+        card.classList.add('bg-blue-900', 'border-blue-700');
+        header.classList.add('border-blue-700');
+        title.classList.add('text-blue-300');
+        footer.classList.add('border-blue-700');
+        
+        button.classList.add('bg-blue-600', 'hover:bg-blue-700', 'text-white');
+        button.textContent = '接單 (Preparing)';
+        button.onclick = () => markOrderReady(button, order.orderName, 'preparing');
+      }
+      
+      footer.appendChild(button);
+      
+      card.appendChild(header);
+      card.appendChild(itemList);
+      card.appendChild(footer);
+      
+      return card;
+    }
+
+
+    /**
+     * 5. 建立訂單項目的 HTML (A餐/E餐)
+     */
+    function createItemHtml(item) {
+      if (!item.isCombo) {
+        // --- 1. 一般品項 (海帶) ---
+        // [v6.30] (終極字體放大)
+        // - 舊 (v6.29): text-xl (20px)
+        // - 新 (v6.30): text-2xl (24px) (100% 放大)
+        return `
+          <div class="flex justify-between items-center text-2xl">
+            <span class="text-white font-semibold">${item.name}</span>
+            <span class="text-gray-300 font-bold">x ${item.quantity}</span>
+          </div>
+        `;
+      }
+      
+      // --- 2. 套餐 (A餐 或 E餐) ---
+      let componentsHtml = '';
+      
+      if (item.components.length > 0) {
+        if (Array.isArray(item.components[0])) {
+          // --- 2A. E餐 ---
+          // 結構: [ ["海帶", "玉米"], ["米血", "蘿蔔"] ]
+          item.components.forEach((componentSet, index) => {
+            // [v6.9] 修正：E餐子品項顏色
+            // [v6.30] (終極字體放大) - 舊 (v6.29): text-lg -> 新 (v6.30): text-xl
+            componentsHtml += `
+              <li class="ml-4 text-yellow-300 text-xl">
+                <span class="font-semibold">(E餐 ${index + 1})</span> ${componentSet.join(' + ')}
+              </li>
+            `;
+          });
+        } else {
+          // --- 2B. A餐 (固定套餐) ---
+          // 結構: ["蘿蔔", "油豆腐", "玉米"]
+          // [v6.30] (終極字體放大) - 舊 (v6.29): text-lg -> 新 (v6.30): text-xl
+          componentsHtml = `
+            <li class="ml-4 text-cyan-300 text-xl">
+              ${item.components.join(' + ')}
+            </li>
+          `;
+        }
+      }
+
+      return `
+        <div class="border border-gray-700 rounded-lg p-3">
+          <!-- [v6.30] (終極字體放大) - 舊 (v6.29): text-xl -> 新 (v6.30): text-2xl -->
+          <div class="flex justify-between items-center text-2xl mb-1">
+            <span class="text-white font-bold">${item.name}</span>
+            <span class="text-gray-300 font-bold">x ${item.quantity}</span>
+          </div>
+          <ul class="list-disc list-inside">
+            ${componentsHtml || '<li class="text-red-400">! 找不到配方</li>'}
+          </ul>
+        </div>
+      `;
+    }
+    
+    /**
+     * 6. [API 呼叫] 更新訂單狀態 (接單 或 完成)
+     */
+    function markOrderReady(buttonEl, orderName, newStatus) {
+      // 1. 暫停自動刷新
+      if (refreshInterval) clearInterval(refreshInterval);
+      
+      // 2. 禁用按鈕，顯示載入中
+      buttonEl.disabled = true;
+      buttonEl.textContent = '更新中...';
+      buttonEl.classList.remove('bg-blue-600', 'hover:bg-blue-700', 'bg-green-600', 'hover:bg-green-700');
+      buttonEl.classList.add('bg-gray-500', 'cursor-not-allowed');
+
+      // 3. 呼叫後端 (傳入 KDS_TYPE)
+      google.script.run
+        .withSuccessHandler(response => onUpdateSuccess(response, buttonEl, orderName, newStatus))
+        .withFailureHandler(onOrdersFailure) 
+        .updateOrderStatus(orderName, newStatus, KDS_TYPE); // [v6.14] 傳入類型
+    }
+    
+    /**
+     * 7. 更新狀態成功 (後端回傳)
+     */
+    function onUpdateSuccess(response, buttonEl, orderName, newStatus) {
+      // 檢查後端是否真的成功
+      if (!response || !response.success) {
+        onOrdersFailure(response.message || "後端更新失敗，但未回傳錯誤訊息。");
+        return;
+      }
+      
+      if (newStatus === 'preparing') {
+        // --- 1. 剛剛按下了 "接單" ---
+        // a. 變更卡片顏色
+        const header = document.getElementById(`header-${orderName}`);
+        if (header) {
+          header.classList.remove('border-blue-700');
+          header.classList.add('border-orange-700');
+          header.querySelector('h2').classList.remove('text-blue-300');
+          header.querySelector('h2').classList.add('text-orange-300');
+          
+          const card = header.closest('.order-card');
+          card.classList.remove('bg-blue-900', 'border-blue-700');
+          card.classList.add('bg-orange-900', 'border-orange-700');
+          
+          const footer = card.querySelector('.p-4.mt-auto');
+          footer.classList.remove('border-blue-700');
+          footer.classList.add('border-orange-700');
+        }
+        
+        // b. 變更按鈕為 "完成"
+        buttonEl.textContent = '完成 (Ready)';
+        buttonEl.classList.remove('bg-gray-500', 'cursor-not-allowed');
+        buttonEl.classList.add('bg-green-600', 'hover:bg-green-700');
+        
+        // c. 賦予 "新" 的點擊功能
+        buttonEl.onclick = () => markOrderReady(buttonEl, orderName, 'ready');
+        
+        // d. 重新啟用按鈕
+        buttonEl.disabled = false;
+        
+      } else if (newStatus === 'ready') {
+        // --- 2. 剛剛按下了 "完成" ---
+        // a. 移除卡片
+        const card = document.getElementById(`order-${orderName}`);
+        if (card) {
+          card.remove();
+        }
+        
+        // b. 檢查是否所有訂單都清空了
+        if (ordersGrid.childElementCount === 0) {
+          showNoOrdersMessage();
+        }
+      }
+      
+      // 3. 重新開始計時
+      startTimer();
+    }
+
+    /**
+     * 8. 處理所有失敗 (獲取失敗 或 更新失敗)
+     */
+    function onOrdersFailure(error) {
+      if (refreshInterval) clearInterval(refreshInterval); // 停止計時
+      
+      let msg = error.message || (typeof error === 'string' ? error : '發生未知錯誤。');
+      
+      // [v6.21] 429 錯誤
+      if (msg.includes("429")) {
+        msg = "請求過於頻繁 (429)，請稍後... (系統正在自動重試)";
+      }
+      
+      console.error('GAS 執行失敗:', error);
+      errorMessageEl.textContent = `無法完成操作：${msg}`;
+      errorModal.classList.remove('hidden');
+      
+      // 失敗後，強制重載一次 KDS，以確保按鈕狀態和後端一致
+      fetchOrders();
+      startTimer();
+    }
+
+  </script>
+</body>
+</html>
+

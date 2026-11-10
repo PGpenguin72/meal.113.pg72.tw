@@ -3,365 +3,181 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>壹參壹參｜一閃一閃 小食部 點餐系統</title>
-<meta name="description" content="2025 校慶園遊會班級攤位的點餐系統：POS 收銀、雙廚房顯示螢幕、語音叫號與取餐櫃台，跑在 Google Apps Script 與 Google Sheets 上。">
-<meta property="og:title" content="壹參壹參｜一閃一閃 小食部 點餐系統">
-<meta property="og:description" content="POS・KDS・叫號・取餐，一份試算表撐起整個園遊會攤位。">
+<title>園遊會點餐系統｜壹參壹參 一閃一閃 小食部</title>
+<meta name="description" content="2025 年校慶園遊會「一閃一閃 小食部」攤位使用的點餐系統，包含收銀、廚房出單、叫號與取餐，可線上試玩。">
+<meta property="og:title" content="園遊會點餐系統｜一閃一閃 小食部">
+<meta property="og:description" content="收銀、廚房出單、叫號、取餐的點餐系統，可線上試玩。">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍢</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg: #fbf8f3; --surface: #ffffff; --surface-2: #f4efe6; --text: #1f1a14; --muted: #6f655a;
-    --line: #e6ddcf; --accent: #e0562b; --accent-2: #f2a33a; --blue: #2f6fe4; --green: #1f9d63; --orange: #d9731f;
-    --shadow: 0 1px 2px rgba(60,40,20,.06), 0 8px 24px rgba(60,40,20,.08);
-    --screen: #15181f; --screen-2: #1f2430; --screen-text: #e8ecf3;
+    --line: #e6ddcf; --accent: #e0562b; --shadow: 0 1px 2px rgba(60,40,20,.06), 0 8px 24px rgba(60,40,20,.08);
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #14120f; --surface: #1d1a16; --surface-2: #26221c; --text: #f3ede4; --muted: #a89d8f;
-      --line: #362f27; --accent: #ff7a4d; --accent-2: #ffbf5e; --blue: #6c9cff; --green: #42c98a; --orange: #f0954a;
-      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
-      --screen: #0c0e13; --screen-2: #171b24;
+      --line: #362f27; --accent: #ff7a4d; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
     }
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
-  body { margin: 0; background: var(--bg); color: var(--text); font-family: "Noto Sans TC", -apple-system, "PingFang TC", sans-serif; line-height: 1.7; -webkit-font-smoothing: antialiased; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: "Noto Sans TC", -apple-system, "PingFang TC", sans-serif; line-height: 1.75; -webkit-font-smoothing: antialiased; }
   a { color: inherit; }
-  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
-  section { padding: 72px 0; }
-  .eyebrow { font-size: 13px; font-weight: 700; letter-spacing: .12em; color: var(--accent); text-transform: uppercase; }
-  h2 { font-size: clamp(26px, 4vw, 36px); line-height: 1.3; margin: 8px 0 12px; font-weight: 900; }
-  .lead { color: var(--muted); font-size: 17px; max-width: 640px; margin: 0; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 0 20px; }
+  section { padding: 52px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: clamp(22px, 3.4vw, 28px); line-height: 1.35; margin: 0 0 8px; font-weight: 900; }
+  .lead { color: var(--muted); font-size: 16px; max-width: 680px; margin: 0; }
 
-  /* nav */
-  nav { position: sticky; top: 0; z-index: 10; backdrop-filter: saturate(1.4) blur(12px); background: color-mix(in srgb, var(--bg) 82%, transparent); border-bottom: 1px solid var(--line); }
+  nav { position: sticky; top: 0; z-index: 10; backdrop-filter: blur(12px); background: color-mix(in srgb, var(--bg) 85%, transparent); border-bottom: 1px solid var(--line); }
   nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 56px; }
-  .brand { font-weight: 900; text-decoration: none; display: flex; gap: 8px; align-items: center; }
-  .navlinks { display: flex; gap: 22px; font-size: 14px; }
+  .brand { font-weight: 900; text-decoration: none; }
+  .navlinks { display: flex; gap: 20px; font-size: 14px; }
   .navlinks a { text-decoration: none; color: var(--muted); }
   .navlinks a:hover { color: var(--text); }
-  @media (max-width: 720px) { .navlinks a:not(.gh) { display: none; } }
+  @media (max-width: 640px) { .navlinks a:not(.keep) { display: none; } }
 
-  /* hero */
-  .hero { padding: 80px 0 56px; position: relative; overflow: hidden; }
-  .hero::before { content: ""; position: absolute; inset: -40% -20% auto auto; width: 620px; height: 620px; background: radial-gradient(closest-side, color-mix(in srgb, var(--accent-2) 30%, transparent), transparent); pointer-events: none; }
-  .tag { display: inline-flex; gap: 8px; align-items: center; font-size: 13px; padding: 6px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); color: var(--muted); }
-  .tag b { color: var(--accent); }
-  .hero h1 { font-size: clamp(36px, 7vw, 64px); line-height: 1.12; margin: 22px 0 18px; font-weight: 900; letter-spacing: -.01em; }
-  .hero h1 span { background: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-  .hero p { font-size: clamp(16px, 2.2vw, 19px); color: var(--muted); max-width: 640px; margin: 0 0 30px; }
-  .cta { display: flex; gap: 12px; flex-wrap: wrap; }
-  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 12px; font-weight: 700; text-decoration: none; font-size: 15px; transition: transform .15s, box-shadow .15s; }
-  .btn:hover { transform: translateY(-1px); }
-  .btn.primary { background: var(--text); color: var(--bg); }
-  .btn.ghost { border: 1px solid var(--line); background: var(--surface); }
-  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 48px; }
-  .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px; }
-  .stat b { display: block; font-size: 30px; font-weight: 900; line-height: 1.1; }
-  .stat span { font-size: 13px; color: var(--muted); }
-  @media (max-width: 720px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+  .hero { padding: 60px 0 52px; }
+  .hero h1 { font-size: clamp(32px, 6vw, 48px); line-height: 1.2; margin: 0 0 16px; font-weight: 900; }
+  .hero p { font-size: clamp(16px, 2.2vw, 18px); color: var(--muted); max-width: 660px; margin: 0 0 10px; }
+  .cta { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 26px; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 12px 18px; border-radius: 12px; font-weight: 700; text-decoration: none; font-size: 15px; border: 1px solid var(--line); background: var(--surface); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn:hover { filter: brightness(1.05); }
 
-  /* screens */
-  .screens { display: grid; grid-template-columns: repeat(6, 1fr); gap: 18px; margin-top: 36px; }
-  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 18px; box-shadow: var(--shadow); display: flex; flex-direction: column; }
-  .card.pos { grid-column: span 4; } .card.kds { grid-column: span 2; } .card.ocs { grid-column: span 4; } .card.pick { grid-column: span 2; }
-  @media (max-width: 860px) { .screens { grid-template-columns: 1fr; } .card.pos, .card.kds, .card.ocs, .card.pick { grid-column: auto; } }
-  .card h3 { margin: 14px 0 4px; font-size: 18px; }
-  .card p { margin: 0; color: var(--muted); font-size: 14px; }
-  .path { font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--accent); }
-  .mock { border-radius: 12px; overflow: hidden; border: 1px solid var(--line); font-size: 11px; line-height: 1.35; user-select: none; }
-  .bar { display: flex; gap: 5px; padding: 7px 9px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
-  .bar i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+  table { border-collapse: separate; border-spacing: 0; width: 100%; margin-top: 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; font-size: 15px; }
+  th, td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  th { background: var(--surface-2); font-weight: 700; }
+  td:first-child { font-weight: 700; white-space: nowrap; }
+  td a { color: var(--accent); font-weight: 700; text-decoration: none; white-space: nowrap; }
+  @media (max-width: 640px) { td:first-child { white-space: normal; } }
 
-  /* POS mock */
-  .posm { display: grid; grid-template-columns: 2fr 1fr; background: #f3f4f6; color: #1f2937; min-height: 210px; }
-  .posm .menu { padding: 10px; }
-  .posm .title { font-weight: 900; font-size: 13px; margin-bottom: 6px; }
-  .tabs { display: flex; gap: 10px; font-weight: 700; color: #9ca3af; border-bottom: 1px solid #d1d5db; margin-bottom: 8px; }
-  .tabs span { padding-bottom: 3px; } .tabs .on { color: #2563eb; border-bottom: 2px solid #2563eb; }
-  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-  .item { background: #fff; border-radius: 6px; padding: 7px 4px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
-  .item b { display: block; font-size: 11px; } .item small { color: #6b7280; font-size: 9px; }
-  .item.out { opacity: .45; background: #e5e7eb; } .item.out small { color: #dc2626; }
-  .posm .cart { background: #fff; border-left: 1px solid #e5e7eb; padding: 10px; display: flex; flex-direction: column; }
-  .cart .row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #f3f4f6; }
-  .cart .total { margin-top: auto; font-weight: 900; font-size: 14px; display: flex; justify-content: space-between; padding: 6px 0; }
-  .cart .pay { background: #2563eb; color: #fff; text-align: center; border-radius: 6px; padding: 6px; font-weight: 700; }
+  ol.flow { list-style: none; counter-reset: s; margin: 20px 0 0; padding: 0; display: grid; gap: 10px; max-width: 720px; }
+  ol.flow li { counter-increment: s; display: grid; grid-template-columns: 32px 1fr; gap: 12px; align-items: start; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+  ol.flow li::before { content: counter(s); width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 900; display: grid; place-items: center; }
+  ol.flow b { display: block; }
+  ol.flow span { color: var(--muted); font-size: 15px; }
+  .note { margin-top: 16px; color: var(--muted); font-size: 15px; max-width: 720px; }
 
-  /* KDS mock */
-  .kdsm { background: #111827; color: #fff; padding: 9px; min-height: 210px; }
-  .kdsm .head { display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 8px; color: #e5e7eb; }
-  .ticket { border: 2px solid; border-radius: 8px; padding: 7px; margin-bottom: 7px; }
-  .ticket.new { background: #1e3a8a; border-color: #1d4ed8; } .ticket.cook { background: #7c2d12; border-color: #c2410c; }
-  .ticket .no { font-size: 18px; font-weight: 900; } .new .no { color: #93c5fd; } .cook .no { color: #fdba74; }
-  .ticket .li { display: flex; justify-content: space-between; } .ticket .sub { color: #fde047; padding-left: 8px; }
-  .ticket .act { margin-top: 5px; text-align: center; border-radius: 5px; padding: 4px; font-weight: 700; }
-  .new .act { background: #2563eb; } .cook .act { background: #16a34a; }
+  ul.plain { margin: 20px 0 0; padding-left: 20px; max-width: 720px; }
+  ul.plain li + li { margin-top: 8px; }
+  ul.plain li span { color: var(--muted); }
 
-  /* OCS mock */
-  .ocsm { display: grid; grid-template-columns: 1fr 1fr; background: #111827; color: #fff; min-height: 170px; }
-  .ocsm > div { padding: 10px; } .ocsm > div + div { background: #1f2937; }
-  .ocsm h4 { margin: 0 0 8px; text-align: center; font-size: 15px; font-weight: 900; }
-  .ocsm .prep h4 { color: #fb923c; } .ocsm .ready h4 { color: #4ade80; }
-  .nums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-  .nums span { border-radius: 6px; text-align: center; font-size: 20px; font-weight: 900; padding: 8px 0; }
-  .prep .nums span { background: #1f2937; color: #fdba74; } .ready .nums span { background: #166534; border: 2px solid #16a34a; }
-  .ready .nums span.call { animation: call 1.4s ease-in-out infinite; }
-  @keyframes call { 50% { transform: scale(1.08); box-shadow: 0 0 0 4px rgba(74,222,128,.35); } }
-  .voice { margin-top: 10px; font-size: 12px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+  .credits td:first-child { width: 38%; }
 
-  /* pickup mock */
-  .pickm { background: #111827; color: #fff; padding: 9px; min-height: 170px; }
-  .pk { background: #166534; border: 2px solid #16a34a; border-radius: 8px; padding: 8px; margin-bottom: 7px; display: flex; justify-content: space-between; align-items: center; }
-  .pk b { font-size: 18px; } .pk span { background: #f3f4f6; color: #111827; font-weight: 700; border-radius: 5px; padding: 3px 6px; font-size: 10px; }
-
-  /* flow */
-  .flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: 36px; counter-reset: s; }
-  .step { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px 16px; }
-  .step::before { counter-increment: s; content: counter(s); position: absolute; top: -12px; left: 16px; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 13px; font-weight: 900; display: grid; place-items: center; }
-  .step code { font-family: "JetBrains Mono", monospace; font-size: 12px; color: var(--accent); }
-  .step b { display: block; margin: 4px 0; }
-  .step p { margin: 0; font-size: 13px; color: var(--muted); }
-  @media (max-width: 860px) { .flow { grid-template-columns: 1fr; gap: 20px; } }
-  .states { margin-top: 26px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-family: "JetBrains Mono", monospace; font-size: 13px; }
-  .pill { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); }
-  .pill.p1 { color: var(--blue); } .pill.p2 { color: var(--orange); } .pill.p3 { color: var(--green); } .pill.p4 { color: var(--muted); }
-  .arrow { color: var(--muted); }
-
-  /* combos */
-  .combos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 32px; }
-  @media (max-width: 860px) { .combos { grid-template-columns: repeat(2, 1fr); } }
-  @media (max-width: 480px) { .combos { grid-template-columns: 1fr; } }
-  .combo { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px; }
-  .combo .k { font-size: 26px; }
-  .combo b { display: block; margin: 6px 0 4px; }
-  .combo p { margin: 0 0 10px; font-size: 14px; color: var(--muted); }
-  .formula { font-family: "JetBrains Mono", monospace; font-size: 12px; background: var(--surface-2); border-radius: 8px; padding: 8px 10px; color: var(--text); word-break: break-word; }
-
-  /* tech + timeline */
-  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-top: 32px; }
-  @media (max-width: 860px) { .two { grid-template-columns: 1fr; } }
-  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-  .chip { padding: 8px 14px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); font-size: 14px; }
-  .box { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 22px; }
-  .box h3 { margin: 0 0 14px; font-size: 18px; }
-  .box ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 14px; }
-  .box li + li { margin-top: 6px; } .box li b { color: var(--text); }
-  .timeline { list-style: none; margin: 0; padding: 0; }
-  .timeline li { display: grid; grid-template-columns: 64px 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px dashed var(--line); font-size: 14px; }
-  .timeline li:last-child { border-bottom: 0; }
-  .timeline .v { font-family: "JetBrains Mono", monospace; color: var(--accent); font-weight: 500; }
-  .timeline .now { color: var(--green); font-weight: 700; }
-
-  footer { border-top: 1px solid var(--line); padding: 36px 0 48px; color: var(--muted); font-size: 14px; }
-  footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-  @media (prefers-reduced-motion: reduce) { .ready .nums span.call { animation: none; } .btn:hover { transform: none; } }
+  footer { border-top: 1px solid var(--line); padding: 28px 0 40px; color: var(--muted); font-size: 14px; }
+  footer .wrap { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 </style>
 </head>
 <body>
 
 <nav>
   <div class="wrap">
-    <a class="brand" href="#">🍢 壹參壹參 小食部</a>
+    <a class="brand" href="#">🍢 一閃一閃 小食部</a>
     <div class="navlinks">
-      <a href="#screens">介面</a>
+      <a href="#screens">畫面</a>
       <a href="#flow">流程</a>
-      <a href="#menu">套餐邏輯</a>
-      <a href="#tech">技術</a>
-      <a class="gh" href="https://github.com/PGpenguin72/meal.113.pg72.tw">GitHub ↗</a>
+      <a href="#combo">套餐</a>
+      <a href="#credits">製作</a>
+      <a class="keep" href="demo/">線上試玩</a>
     </div>
   </div>
 </nav>
 
 <header class="hero">
   <div class="wrap">
-    <div class="tag"><b>●</b> 2025-11-01 校慶園遊會 · 實戰上線</div>
-    <h1>一份試算表，<br>撐起整個<span>關東煮攤位</span>。</h1>
-    <p>「壹參壹參｜一閃一閃 小食部」的點餐系統：收銀平板點餐、兩個廚房各自看單、大螢幕語音叫號、取餐櫃台結案，全部跑在 Google Apps Script 與 Google Sheets 上，不用伺服器、不用資料庫。</p>
+    <h1>園遊會點餐系統</h1>
+    <p>2025 年 11 月 1 日校慶園遊會，班級攤位「壹參壹參｜一閃一閃 小食部」使用的點餐系統。</p>
+    <p>收銀、廚房出單、叫號、取餐都在同一套系統裡完成，資料存在 Google 試算表。</p>
     <div class="cta">
-      <a class="btn primary" href="https://github.com/PGpenguin72/meal.113.pg72.tw">查看原始碼</a>
-      <a class="btn ghost" href="https://github.com/PGpenguin72/meal.113.pg72.tw/tree/main/docs">閱讀文件 →</a>
-      <a class="btn ghost" href="https://docs.google.com/spreadsheets/d/10L4bqqWCrQ6Pg7V77s9D2CnnGREZXjdDYWMLO1psx5E/edit?usp=sharing" target="_blank" rel="noopener">查看當天的試算表（唯讀）↗</a>
-    </div>
-    <div class="stats">
-      <div class="stat"><b>5</b><span>個角色畫面</span></div>
-      <div class="stat"><b>2</b><span>站廚房分流</span></div>
-      <div class="stat"><b>20</b><span>項餐點（含 7 種套餐）</span></div>
-      <div class="stat"><b>0</b><span>台伺服器</span></div>
+      <a class="btn primary" href="demo/">▶ 線上試玩</a>
+      <a class="btn" href="https://github.com/PGpenguin72/meal.113.pg72.tw">原始碼</a>
+      <a class="btn" href="https://docs.google.com/spreadsheets/d/10L4bqqWCrQ6Pg7V77s9D2CnnGREZXjdDYWMLO1psx5E/edit?usp=sharing" target="_blank" rel="noopener">當天的試算表（唯讀）↗</a>
     </div>
   </div>
 </header>
 
 <section id="screens">
   <div class="wrap">
-    <div class="eyebrow">Screens</div>
-    <h2>每個人只看到自己需要的畫面</h2>
-    <p class="lead">同一個網頁應用程式網址，加上不同的 <code>?page=</code> 參數，就變成收銀台、廚房、叫號螢幕或取餐櫃台。</p>
-
-    <div class="screens">
-      <div class="card pos">
-        <div class="mock" aria-hidden="true">
-          <div class="bar"><i></i><i></i><i></i></div>
-          <div class="posm">
-            <div class="menu">
-              <div class="title">壹參壹參 | 一閃一閃 小食部</div>
-              <div class="tabs"><span class="on">全部</span><span>套餐</span><span>關東煮</span><span>飲料</span></div>
-              <div class="grid4">
-                <div class="item"><b>A餐-輕享</b><small>$50 · 庫存 24</small></div>
-                <div class="item"><b>E餐-1+1+1</b><small>$55 · 庫存 29</small></div>
-                <div class="item"><b>海帶</b><small>$15 · 庫存 27</small></div>
-                <div class="item"><b>米血</b><small>$15 · 庫存 29</small></div>
-                <div class="item"><b>玉米</b><small>$20 · 庫存 24</small></div>
-                <div class="item out"><b>魚板</b><small>已售完</small></div>
-                <div class="item"><b>冬瓜檸檬</b><small>$40 · 庫存 89</small></div>
-                <div class="item"><b>藍柑汽水</b><small>$45 · 庫存 9</small></div>
-              </div>
-            </div>
-            <div class="cart">
-              <b style="font-size:13px">目前訂單</b>
-              <div class="row"><span>A餐-輕享 ×1</span><span>$50</span></div>
-              <div class="row"><span>海帶 ×2</span><span>$30</span></div>
-              <div class="row"><span>冬瓜檸檬 ×1</span><span>$40</span></div>
-              <div class="total"><span>總計</span><span>$120</span></div>
-              <div class="pay">結帳 (送出)</div>
-            </div>
-          </div>
-        </div>
-        <h3>POS 收銀台</h3>
-        <p>依分類點餐、即時顯示「扣掉購物車後」的有效庫存；E 餐跳出三選一視窗；數字鍵盤＋快速金額計算找零，送出後顯示取餐號碼。</p>
-        <div class="path">/exec</div>
-      </div>
-
-      <div class="card kds">
-        <div class="mock" aria-hidden="true">
-          <div class="bar"><i></i><i></i><i></i></div>
-          <div class="kdsm">
-            <div class="head"><span>KDS (關東煮/套餐)</span><span>5s</span></div>
-            <div class="ticket cook">
-              <div class="no">11</div>
-              <div class="li"><span>A餐-輕享</span><span>×1</span></div>
-              <div class="sub">蘿蔔 + 王子麵 + 玉米</div>
-              <div class="act">完成 (Ready)</div>
-            </div>
-            <div class="ticket new">
-              <div class="no">12</div>
-              <div class="li"><span>海帶</span><span>×2</span></div>
-              <div class="act">接單 (Preparing)</div>
-            </div>
-          </div>
-        </div>
-        <h3>KDS 廚房螢幕 ×2</h3>
-        <p>關東煮／套餐與飲料各一台，只顯示自己那站的品項，先來先做。</p>
-        <div class="path">?page=kds · ?page=kds_drinks</div>
-      </div>
-
-      <div class="card ocs">
-        <div class="mock" aria-hidden="true">
-          <div class="bar"><i></i><i></i><i></i></div>
-          <div class="ocsm">
-            <div class="prep"><h4>準備中</h4><div class="nums"><span>#15</span><span>#14</span><span>#13</span></div></div>
-            <div class="ready"><h4>待取餐</h4><div class="nums"><span>#10</span><span class="call">#12</span></div></div>
-          </div>
-        </div>
-        <div class="voice">🔊「12 號，請取餐。」</div>
-        <h3>OCS 叫號大螢幕</h3>
-        <p>放在攤位前方的電視：新號碼進入「待取餐」時，用瀏覽器的 Web Speech API 以中文語音播報。</p>
-        <div class="path">?page=ocs</div>
-      </div>
-
-      <div class="card pick">
-        <div class="mock" aria-hidden="true">
-          <div class="bar"><i></i><i></i><i></i></div>
-          <div class="pickm">
-            <div class="pk"><b>#10</b><span>取餐完成</span></div>
-            <div class="pk"><b>#12</b><span>取餐完成</span></div>
-          </div>
-        </div>
-        <h3>Pickup 取餐櫃台</h3>
-        <p>顧客報號碼、交餐、按一下，訂單結案並從叫號螢幕消失。</p>
-        <div class="path">?page=pickup</div>
-      </div>
-    </div>
+    <h2>5 個畫面</h2>
+    <p class="lead">每個位置用一台裝置，打開自己負責的畫面。</p>
+    <table>
+      <thead><tr><th>畫面</th><th>當天的裝置</th><th>做什麼</th><th></th></tr></thead>
+      <tbody>
+        <tr><td>收銀台</td><td>iPad Air</td><td>點餐、收錢找零，送出後給顧客取餐號碼。賣完的品項會變灰。</td><td><a href="demo/pos.html">試玩</a></td></tr>
+        <tr><td>廚房：關東煮</td><td>手機</td><td>顯示要做的關東煮和套餐。按「接單」，做好按「完成」。</td><td><a href="demo/kds.html">試玩</a></td></tr>
+        <tr><td>廚房：飲料</td><td>手機</td><td>顯示要做的飲料，操作同上。</td><td><a href="demo/kds-drinks.html">試玩</a></td></tr>
+        <tr><td>叫號螢幕</td><td>MacBook Pro</td><td>顯示「準備中」和「待取餐」的號碼，做好時用語音叫號。</td><td><a href="demo/ocs.html">試玩</a></td></tr>
+        <tr><td>取餐櫃台</td><td>手機</td><td>顧客拿走餐點後按「取餐完成」。</td><td><a href="demo/pickup.html">試玩</a></td></tr>
+      </tbody>
+    </table>
   </div>
 </section>
 
-<section id="flow" style="background:var(--surface-2)">
+<section id="flow">
   <div class="wrap">
-    <div class="eyebrow">Order Flow</div>
-    <h2>一張訂單的旅程</h2>
-    <p class="lead">兩站都要按「完成」才會叫號；所有寫入都排隊上鎖，兩台收銀機同時賣也不會超賣。</p>
-    <div class="flow">
-      <div class="step"><code>submitOrder</code><b>收銀送單</b><p>上鎖、檢查庫存、扣庫存、產生取餐號碼與訂單明細表。</p></div>
-      <div class="step"><code>getKitchenOrders</code><b>廚房看單</b><p>KDS 每 5 秒刷新，依站別分流，套餐自動展開成內容物。</p></div>
-      <div class="step"><code>updateOrderStatus</code><b>接單 → 完成</b><p>更新該站旗標，再依兩站狀態推導出整張訂單的狀態。</p></div>
-      <div class="step"><code>getOcsOrders</code><b>語音叫號</b><p>新號碼進入「待取餐」，大螢幕播報並閃爍提示。</p></div>
-      <div class="step"><code>markOrderPickedUp</code><b>取餐結案</b><p>櫃台確認交餐，訂單變成 completed。</p></div>
-    </div>
-    <div class="states">
-      <span class="pill p1">pending</span><span class="arrow">→</span>
-      <span class="pill p2">preparing</span><span class="arrow">→</span>
-      <span class="pill p3">ready_for_pickup</span><span class="arrow">→</span>
-      <span class="pill p4">completed</span>
-    </div>
+    <h2>一張訂單怎麼跑</h2>
+    <ol class="flow">
+      <li><div><b>收銀台送出訂單</b><span>系統檢查庫存、扣庫存，給出取餐號碼。</span></div></li>
+      <li><div><b>廚房螢幕出現訂單</b><span>關東煮和飲料分別送到各自的螢幕。</span></div></li>
+      <li><div><b>廚房接單、做好</b><span>每一站按「接單」，再按「完成」。</span></div></li>
+      <li><div><b>叫號螢幕叫號</b><span>所有該做的都完成後，號碼才會出現在「待取餐」。</span></div></li>
+      <li><div><b>取餐櫃台交餐</b><span>按「取餐完成」，這張訂單就結束了。</span></div></li>
+    </ol>
+    <p class="note">兩台收銀機同時送單也不會重複扣庫存，系統會讓寫入排隊處理。</p>
   </div>
 </section>
 
-<section id="menu">
+<section id="combo">
   <div class="wrap">
-    <div class="eyebrow">Combo Logic</div>
-    <h2>套餐的庫存，是算出來的</h2>
-    <p class="lead">套餐本身不存庫存。配方寫在試算表裡，POS 與後端用同一套規則即時算出「還能賣幾份」。</p>
-    <div class="combos">
-      <div class="combo"><div class="k">🍢</div><b>一般品項</b><p>關東煮、飲料，直接扣庫存。</p><div class="formula">stock = 菜單!D</div></div>
-      <div class="combo"><div class="k">🍱</div><b>固定套餐 A–D、F</b><p>依配方逐項扣庫存，最缺的那樣決定能賣幾份。</p><div class="formula">min(配方中每樣的庫存)</div></div>
-      <div class="combo"><div class="k">🎯</div><b>E 餐 1+1+1</b><p>$15、$20、$25 三區各選一樣。</p><div class="formula">min(Σ$15, Σ$20, Σ$25)</div></div>
-      <div class="combo"><div class="k">♾️</div><b>G 餐 內用吃到飽</b><p>不扣庫存、不進廚房，送單直接結案。</p><div class="formula">stock = 999</div></div>
-    </div>
+    <h2>套餐怎麼扣庫存</h2>
+    <p class="lead">套餐本身不記庫存，而是看組成的品項還剩多少。</p>
+    <table>
+      <thead><tr><th>種類</th><th>怎麼算</th></tr></thead>
+      <tbody>
+        <tr><td>單點</td><td>直接扣該品項的庫存。</td></tr>
+        <tr><td>A、B、C、D、F 餐</td><td>內容固定，送單時每樣內容物各扣一份。能賣幾份，看內容物裡剩最少的那樣。</td></tr>
+        <tr><td>E 餐 1+1+1</td><td>從 15 元、20 元、25 元三區各選一樣，扣選到的那三樣。</td></tr>
+        <tr><td>G 餐 內用吃到飽</td><td>不扣庫存，也不送到廚房。</td></tr>
+      </tbody>
+    </table>
   </div>
 </section>
 
-<section id="tech" style="padding-top:24px">
+<section id="tech">
   <div class="wrap">
-    <div class="eyebrow">Under the Hood</div>
-    <h2>用 Google 全家桶硬幹出來的即時系統</h2>
-    <div class="two">
-      <div class="box">
-        <h3>技術選擇</h3>
-        <div class="chips" style="margin-bottom:18px">
-          <span class="chip">Google Apps Script</span><span class="chip">Google Sheets</span><span class="chip">HtmlService</span>
-          <span class="chip">LockService</span><span class="chip">CacheService</span><span class="chip">Tailwind CSS</span><span class="chip">Web Speech API</span>
-        </div>
-        <ul>
-          <li><b>試算表就是資料庫</b>：菜單、總表、每張訂單一個工作表，現場隨時能手動修正。</li>
-          <li><b>LockService 排隊寫入</b>：多台收銀同時送單，庫存不會被重複扣。</li>
-          <li><b>CacheService 擋輪詢</b>：多台螢幕每幾秒刷新會撞到呼叫上限（429），改成快取優先，寫入時主動重建。</li>
-          <li><b>取餐號碼每日重置</b>：依最後一張訂單的日期判斷，隔天自動從 1 開始。</li>
-          <li><b>當天資料公開</b>：園遊會當天 164 張訂單的<a href="https://docs.google.com/spreadsheets/d/10L4bqqWCrQ6Pg7V77s9D2CnnGREZXjdDYWMLO1psx5E/edit?usp=sharing" target="_blank" rel="noopener">收銀資料庫試算表</a>開放唯讀檢視（人員信箱已替換）。</li>
-        </ul>
-      </div>
-      <div class="box">
-        <h3>版本演進</h3>
-        <ul class="timeline">
-          <li><span class="v">v6.8</span><span>KDS 接單系統</span></li>
-          <li><span class="v">v6.14</span><span>拆成關東煮／飲料雙 KDS</span></li>
-          <li><span class="v">v6.15</span><span>OCS 叫號、Pickup 取餐、站別狀態旗標</span></li>
-          <li><span class="v">v6.17</span><span>G 餐吃到飽、KDS 排序</span></li>
-          <li><span class="v">v6.21</span><span>CacheService，解決 429</span></li>
-          <li><span class="v">v6.22</span><span class="now">寫入時重建快取 · 園遊會當天正式版</span></li>
-          <li><span class="v">v7.x</span><span>前端搬到 Cloudflare Pages 的嘗試（未上線）</span></li>
-        </ul>
-      </div>
-    </div>
+    <h2>用了哪些技術</h2>
+    <ul class="plain">
+      <li><b>Google Apps Script</b><span>：後端程式，同時負責提供網頁。</span></li>
+      <li><b>Google 試算表</b><span>：存菜單、庫存和所有訂單，現場可以直接手動修改。</span></li>
+      <li><b>Tailwind CSS</b><span>：畫面樣式。</span></li>
+      <li><b>瀏覽器語音（Web Speech API）</b><span>：叫號螢幕唸號碼。</span></li>
+    </ul>
+  </div>
+</section>
+
+<section id="credits">
+  <div class="wrap">
+    <h2>誰做了什麼</h2>
+    <table class="credits">
+      <thead><tr><th>部分</th><th>製作</th></tr></thead>
+      <tbody>
+        <tr><td>系統構想、架構、畫面與流程設計</td><td>PG企鵝</td></tr>
+        <tr><td>系統程式碼（收銀、廚房、叫號、取餐 5 個畫面與後端）</td><td>依照 PG企鵝 的設計，由 Gemini 產生</td></tr>
+        <tr><td>本介紹頁、線上試玩的模擬後端、GitHub 上的文件</td><td>Claude 撰寫（2026 年 11 月整理）</td></tr>
+      </tbody>
+    </table>
+    <p class="note">線上試玩使用的 5 個畫面是當天的原始檔案，沒有修改；模擬後端照原本後端的邏輯改寫，只在你的瀏覽器裡執行。完整文件在 <a href="https://github.com/PGpenguin72/meal.113.pg72.tw/tree/main/docs">GitHub 的 docs 資料夾</a>。</p>
   </div>
 </section>
 
 <footer>
   <div class="wrap">
-    <span>© ArcantStudio｜極區工作室 2025 製作 · 頁面中的畫面為示意，不連線任何真實資料；當天的實際資料請見<a href="https://docs.google.com/spreadsheets/d/10L4bqqWCrQ6Pg7V77s9D2CnnGREZXjdDYWMLO1psx5E/edit?usp=sharing" target="_blank" rel="noopener">唯讀試算表</a>。</span>
-    <a href="https://github.com/PGpenguin72/meal.113.pg72.tw">github.com/PGpenguin72/meal.113.pg72.tw</a>
+    <span>© ArcantStudio｜極區工作室 2025</span>
+    <a href="https://github.com/PGpenguin72/meal.113.pg72.tw">GitHub</a>
   </div>
 </footer>
 

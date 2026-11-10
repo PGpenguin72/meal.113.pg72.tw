@@ -15,10 +15,20 @@
 | [`apps-script/`](apps-script/) | **當天實際上線的版本（v6.22）**：`Code.js` 後端 ＋ 5 個由 Apps Script 直接提供的頁面 | ✅ 正式使用 |
 | [`cloudflare/`](cloudflare/) | 園遊會前一晚嘗試的「v7 外部 API 版」：頁面搬到 Cloudflare Pages，透過 `/api` 轉接 Apps Script | ⚠️ 未完成、未上線 |
 | [`docs/`](docs/) | 架構、API、試算表結構、現場操作、已知問題 | 📄 |
-| [當天的收銀資料庫](https://docs.google.com/spreadsheets/d/10L4bqqWCrQ6Pg7V77s9D2CnnGREZXjdDYWMLO1psx5E/edit?usp=sharing) | 園遊會當天實際使用的 Google 試算表（菜單、訂單總表、164 張 `Order#N`），唯讀公開；人員信箱已替換為 `hi@pg72.tw` | 🔗 唯讀 |
+| [當天的收銀資料庫](https://docs.google.com/spreadsheets/d/10L4bqqWCrQ6Pg7V77s9D2CnnGREZXjdDYWMLO1psx5E/edit?usp=sharing) | 園遊會當天實際使用的 Google 試算表（菜單、訂單總表、每張訂單的 `Order#N` 工作表），唯讀公開；人員信箱已替換為 `hi@pg72.tw` | 🔗 唯讀 |
+| [`site/`](site/) | 介紹頁與線上試玩，部署在 <https://meal.113.pg72.tw>。試玩用的 5 個畫面由 `scripts/build-demo.sh` 從 `apps-script/` 原樣複製，只多插入一行模擬後端 `mock-gas.js` | 🌐 |
 | `legacy` branch | 原本 `113.arcantstudio.com` 倉庫的完整 git 歷史（3 筆 commit，未經任何修改） | 🗄 |
 
 > 程式碼都維持當時的原樣，整理時只有搬資料夾和補文件，沒有改任何一行程式。
+
+## 誰做了什麼
+
+| 部分 | 製作 |
+|---|---|
+| 系統構想、架構、畫面與流程設計 | PG企鵝 |
+| 系統程式碼：`apps-script/`、`cloudflare/` | 依照 PG企鵝 的設計，由 **Gemini** 產生 |
+| 文件：本 README、`docs/`、各資料夾的 README | **Claude** 撰寫（2026-11 整理），內容依據原始程式碼與試算表 |
+| 介紹頁與線上試玩：`site/`（含模擬後端 `site/demo/mock-gas.js`）、`scripts/build-demo.sh` | **Claude** 撰寫（2026-11） |
 
 ## 系統一覽
 
