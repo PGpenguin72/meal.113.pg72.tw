@@ -15,6 +15,7 @@
 | [`apps-script/`](apps-script/) | **當天實際上線的版本（v6.22）**：`Code.js` 後端 ＋ 5 個由 Apps Script 直接提供的頁面 | ✅ 正式使用 |
 | [`cloudflare/`](cloudflare/) | 園遊會前一晚嘗試的「v7 外部 API 版」：頁面搬到 Cloudflare Pages，透過 `/api` 轉接 Apps Script | ⚠️ 未完成、未上線 |
 | [`docs/`](docs/) | 架構、API、試算表結構、現場操作、已知問題 | 📄 |
+| [當天的收銀資料庫](https://docs.google.com/spreadsheets/d/10L4bqqWCrQ6Pg7V77s9D2CnnGREZXjdDYWMLO1psx5E/edit?usp=sharing) | 園遊會當天實際使用的 Google 試算表（菜單、訂單總表、164 張 `Order#N`），唯讀公開；人員信箱已替換為 `hi@pg72.tw` | 🔗 唯讀 |
 | `legacy` branch | 原本 `113.arcantstudio.com` 倉庫的完整 git 歷史（3 筆 commit，未經任何修改） | 🗄 |
 
 > 程式碼都維持當時的原樣，整理時只有搬資料夾和補文件，沒有改任何一行程式。
